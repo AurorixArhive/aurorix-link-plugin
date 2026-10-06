@@ -128,6 +128,35 @@ func TestSizeText(t *testing.T) {
 	}
 }
 
+// 解析失败必须把额度还回去: 一次网络抖动不该让这条链接在去重窗口里再也发不动,
+// 而用户那边看到的只是"没反应"。
+func TestReleaseReturnsQuota(t *testing.T) {
+	p := New(nil, nil)
+	if !p.claim("link:u", time.Minute) {
+		t.Fatal("第一次应放行")
+	}
+	if p.claim("link:u", time.Minute) {
+		t.Fatal("窗口内应拦住")
+	}
+	p.release("link:u")
+	if !p.claim("link:u", time.Minute) {
+		t.Fatal("还了额度就该能再试")
+	}
+}
+
+func TestWindowText(t *testing.T) {
+	cases := map[time.Duration]string{
+		30 * time.Second: "30 秒",
+		10 * time.Minute: "10 分钟",
+		90 * time.Second: "1 分钟",
+	}
+	for d, want := range cases {
+		if got := windowText(d); got != want {
+			t.Fatalf("windowText(%v) = %q, want %q", d, got, want)
+		}
+	}
+}
+
 // 普通聊天不该留痕: 群里每句话都打一条日志, 日志里就什么都看不出来了。
 func TestWorthTracingOnlyOnCardOrForward(t *testing.T) {
 	if worthTracing(&event.MessageEvent{Content: "今天天气不错"}) {

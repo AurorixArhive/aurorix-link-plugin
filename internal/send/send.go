@@ -28,6 +28,10 @@ const (
 	templateNote = "note"
 )
 
+// skipNoticeGap 是"这次为什么没做"这类提示之间的最小间隔。
+// 连着甩五条链接时跟着刷五句提示, 和刷屏没区别。
+const skipNoticeGap = 30 * time.Second
+
 // Config 是这一层读到的配置快照。
 type Config struct {
 	Enabled map[string]bool
@@ -60,7 +64,7 @@ func New(parser *parse.Set, cfg func() Config) *Pipeline {
 
 // Handle 是消息事件入口: 认链接 → 防刷 → 解析 → 发送。
 // 认不出链接的消息一律静默 —— 群里聊什么都能触发的机器人只会被踢。
-// 但静默前必须留痕: 否则"发了链接没反应"在线上只能靠猜。
+// 但"认出来了却决定不做"必须说话: 沉默和坏了在用户眼里是一回事。
 func (p *Pipeline) Handle(ctx *event.Context, e *event.MessageEvent) {
 	hit, ok := hitOf(e)
 	if !ok {
@@ -69,6 +73,7 @@ func (p *Pipeline) Handle(ctx *event.Context, e *event.MessageEvent) {
 	}
 	cfg := p.cfg()
 	if !cfg.Enabled[hit.Platform] {
+		log.Debugf("跳过 %s: 平台已在配置里关闭", hit.URL)
 		return
 	}
 
@@ -77,18 +82,52 @@ func (p *Pipeline) Handle(ctx *event.Context, e *event.MessageEvent) {
 		scope = e.UserID
 	}
 	if !p.claim("scope:"+scope, cfg.GroupCooldown) {
+		p.skip(ctx, e, scope, "刚处理过一条，稍等一下再发")
 		return
 	}
 	if !p.claim("link:"+hit.URL, cfg.LinkTTL) {
+		p.skip(ctx, e, scope, "这条链接 "+windowText(cfg.LinkTTL)+"内只解析一次，刚才已经发过了")
 		return
 	}
 
 	got, err := p.parse(hit, cfg)
 	if err != nil {
+		// 没解析成功不该占掉这条链接的额度: 否则一次网络抖动就能让这条链接
+		// 在去重窗口里再也发不动, 而用户那边看到的只是"没反应"。
+		p.release("link:" + hit.URL)
 		p.fail(ctx, e, err)
 		return
 	}
-	p.deliver(ctx, e, got, cfg)
+	if err := p.deliver(ctx, e, got, cfg); err != nil {
+		// 卡片都没发出去等于这次什么都没给到, 同样不该占额度。
+		p.release("link:" + hit.URL)
+	}
+}
+
+// skip 告诉用户"这次为什么没做"。
+//
+// 提示本身也限频: 连着甩五条链接时跟着刷五句提示, 和刷屏没区别。
+func (p *Pipeline) skip(ctx *event.Context, e *event.MessageEvent, scope, reason string) {
+	log.Debugf("跳过 %.60q: %s", e.Content, reason)
+	if !p.claim("skip:"+scope, skipNoticeGap) {
+		return
+	}
+	p.say(ctx, e, templateNote, &templates.Args{"reason": reason})
+}
+
+// release 把额度还回去, 让下次还能重试。
+func (p *Pipeline) release(key string) {
+	p.mu.Lock()
+	delete(p.recent, key)
+	p.mu.Unlock()
+}
+
+// windowText 把窗口时长说成人话。
+func windowText(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%d 秒", int(d.Seconds()))
+	}
+	return fmt.Sprintf("%d 分钟", int(d.Minutes()))
 }
 
 // traceUnmatched 记下"看着像卡片/转发/媒体, 却没认出链接"的消息。
@@ -196,7 +235,8 @@ func (p *Pipeline) claim(key string, ttl time.Duration) bool {
 	return true
 }
 
-func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got model.Media, cfg Config) {
+// deliver 发卡片与视频, 卡片没发出去时返回错误 —— 那等于这次什么都没给到, 调用方要还额度。
+func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got model.Media, cfg Config) error {
 	note, videoPath := p.videoPlan(got, cfg)
 	if videoPath != "" {
 		defer os.Remove(videoPath)
@@ -213,7 +253,7 @@ func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got model.
 	})
 	if err != nil {
 		log.Warnf("渲染卡片失败: %v", err)
-		return
+		return err
 	}
 
 	// 卡片与视频分成两条链发。视频要过 QQ 的 COS 分片上传, 是整条链路里最容易失败的一步;
@@ -229,10 +269,10 @@ func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got model.
 	}
 	if err := card.Send(); err != nil {
 		log.Warnf("发送卡片失败: %v", err)
-		return
+		return err
 	}
 	if videoPath == "" {
-		return
+		return nil
 	}
 
 	video := ctx.Msg()
@@ -243,6 +283,7 @@ func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got model.
 		log.Warnf("发送视频失败: %v", err)
 		p.say(ctx, e, templateNote, &templates.Args{"reason": "视频没传上去，点标题去原页面看"})
 	}
+	return nil
 }
 
 // videoPlan 决定视频发不发本体: 超时长、超体积、下载失败都只发卡片, 并给一句说明。
