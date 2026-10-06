@@ -198,9 +198,9 @@ func configFields() []plugin.ConfigField {
 		{
 			Key:         "disabled_platforms",
 			Label:       "关闭的平台",
-			Description: "填平台名，逗号分隔，例如：快手,小黑盒。留空表示 13 个平台全开。",
+			Description: "填平台名，逗号分隔，例如：小红书,微博。留空表示六个平台全开。",
 			Type:        "text",
-			Placeholder: "快手,小黑盒",
+			Placeholder: "小红书,微博",
 		},
 	}
 	return append(fields, cookieFields()...)
@@ -208,9 +208,7 @@ func configFields() []plugin.ConfigField {
 
 // cookiePlatforms 是要登录态才拿得到数据的平台, 每个在管理台里给一个输入框。
 // 没填不影响其他平台: 该平台解析失败会退成卡片, 不会连带把别的平台搞坏。
-var cookiePlatforms = []string{
-	detect.Xhs, detect.Kuaishou, detect.Weibo, detect.Weishi, detect.Miyoushe,
-}
+var cookiePlatforms = []string{detect.Xhs, detect.Weibo}
 
 func cookieKey(platform string) string { return "cookie_" + platform }
 

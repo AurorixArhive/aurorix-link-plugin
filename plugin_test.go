@@ -55,7 +55,7 @@ func TestFailTemplateRenders(t *testing.T) {
 
 func TestDefaultsHaveEveryPlatform(t *testing.T) {
 	got := newSettings().Get()
-	for _, platform := range []string{"bilibili", "douyin", "kuaishou", "xhs", "heybox"} {
+	for _, platform := range []string{"bilibili", "douyin", "xhs", "weibo", "miyoushe", "zuiyou"} {
 		if !got.Enabled[platform] {
 			t.Fatalf("默认应开启 %s", platform)
 		}
@@ -73,7 +73,7 @@ func TestApplyTakesEffect(t *testing.T) {
 		"max_duration_minutes":   float64(3),
 		"max_size_mb":            float64(20),
 		"send_video":             false,
-		"disabled_platforms":     "快手,小黑盒",
+		"disabled_platforms":     "微博,最右",
 	}); err != nil {
 		t.Fatalf("应用配置失败: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestApplyTakesEffect(t *testing.T) {
 	if got.MaxDuration != 180 || got.MaxSizeMB != 20 || got.SendVideo {
 		t.Fatalf("数值与开关没生效: %+v", got)
 	}
-	if got.Enabled["kuaishou"] || got.Enabled["heybox"] {
+	if got.Enabled["weibo"] || got.Enabled["zuiyou"] {
 		t.Fatalf("关掉的平台仍开着: %+v", got.Enabled)
 	}
 	if !got.Enabled["douyin"] || !got.Enabled["xhs"] {
@@ -96,14 +96,14 @@ func TestApplyTakesEffect(t *testing.T) {
 // 填错的平台名不该顺手把平台关掉 —— 一个错别字全关是最难查的那种故障。
 func TestApplyIgnoresUnknownPlatform(t *testing.T) {
 	s := newSettings()
-	if err := s.Apply(map[string]any{"disabled_platforms": "抖音, 快手啊"}); err != nil {
+	if err := s.Apply(map[string]any{"disabled_platforms": "抖音, 微博啊"}); err != nil {
 		t.Fatalf("应用配置失败: %v", err)
 	}
 	got := s.Get()
 	if got.Enabled["douyin"] {
 		t.Fatal("写了平台名就该关掉")
 	}
-	if !got.Enabled["kuaishou"] {
-		t.Fatal("错别字不该把快手也关掉")
+	if !got.Enabled["weibo"] {
+		t.Fatal("错别字不该把微博也关掉")
 	}
 }

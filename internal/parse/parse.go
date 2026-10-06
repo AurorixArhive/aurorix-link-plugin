@@ -70,17 +70,10 @@ func New(client Client, creds Creds) *Set {
 	return &Set{parsers: map[string]Parser{
 		detect.Bilibili: newBilibili(e),
 		detect.Douyin:   newDouyin(e),
-		detect.Kuaishou: newKuaishou(e),
 		detect.Xhs:      newXhs(e),
-		detect.Heybox:   newHeybox(e),
-		detect.Acfun:    newAcfun(e),
 		detect.Weibo:    newWeibo(e),
 		detect.Miyoushe: newMiyoushe(e),
-		detect.Weishi:   newWeishi(e),
 		detect.Zuiyou:   newZuiyou(e),
-		detect.Ixigua:   newIxigua(e),
-		detect.Pipixia:  newPipixia(e),
-		detect.Xsj:      newXsj(e),
 	}}
 }
 

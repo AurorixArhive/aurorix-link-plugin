@@ -7,10 +7,11 @@
 | 平台 | 认得的链接 | 发回来的东西 |
 |---|---|---|
 | 抖音 | `v.douyin.com/xxx`、`douyin.com/video/xxx`、`iesdouyin.com/share/video/xxx` | 无水印视频,或图集 + 文案 |
-| 快手 | `v.kuaishou.com/xxx`、`kuaishou.com/short-video/xxx` | 视频,或图集 + 文案 |
 | B站 | `bilibili.com/video/BV...`、`b23.tv/xxx`、`av123`、直接发裸 BV 号 | 视频 + 标题 / UP主 / 时长 / 播放量 |
-| 小红书 | `xhslink.com/xxx`、`xiaohongshu.com/explore/xxx` | 笔记图集或视频 + 正文 |
-| 小黑盒 | `xiaoheihe.cn` 的分享链接与站内链接 | 帖子图文 + 正文 |
+| 小红书 | `xhslink.com/xxx`、`xiaohongshu.com/explore/xxx` | 笔记图集或视频 + 正文（需配 Cookie） |
+| 微博 | `m.weibo.cn/detail/xxx`、`weibo.com/...` | 视频或图集 + 正文（需配 Cookie） |
+| 米游社 | `miyoushe.com/ys/article/xxx` | 帖子图集或视频 + 正文 |
+| 最右 | `share.xiaochuankeji.cn/hybrid/share/post?pid=xxx` | 视频或图集 + 标题 |
 
 从 App 里点"分享到 QQ"发出来的卡片也认 —— 链接藏在卡片里,插件会把它取出来。
 
@@ -35,7 +36,8 @@ aurx run
 | 视频时长上限(分钟) | 10 | 超过就只发卡片,不发视频本体 |
 | 视频体积上限(MB) | 50 | 同上;QQ 上传大文件容易超时,所以比平台上限更保守 |
 | 发送视频本体 | 开 | 关掉后只发卡片和标题,省流量 |
-| 关闭的平台 | 空 | 填平台名,逗号分隔,例如 `快手,小黑盒`;留空表示五个平台全开 |
+| 关闭的平台 | 空 | 填平台名,逗号分隔,例如 `小红书,微博`;留空表示六个平台全开 |
+| 小红书 / 微博 Cookie | 空 | 这两个平台要登录态才拿得到数据,留空则不解析它们 |
 
 ## 行为细节
 
@@ -47,8 +49,8 @@ aurx run
 
 ## 已知限制
 
+- 微博和小红书必须填 Cookie,否则接口会拿游客页或验证页挡回来
 - 小红书的分享链接里带 `xsec_token`,token 过期或笔记私密时会解析不到,这时重新复制一次分享链接即可
-- 小黑盒的接口有风控,个别帖子会取不到正文
 - B站取的是 `platform=html5` 的渐进式 MP4:单文件、免合流、体积小,代价是清晰度不高
 - 卡片消息的解析依赖 Aurorix 透出 `ark_data`(见框架 `lib/structers`);框架版本过旧时只能认粘贴出来的文本链接
 - 直播间、付费内容、需要登录才能看的作品不在支持范围内
@@ -63,7 +65,7 @@ video-plugin/
 └── internal/
     ├── detect/                  从一段文字或卡片里认出平台与链接
     ├── model/                   解析产物(视频 / 图集 / 文案)
-    ├── parse/                   五个平台各一个文件, 共用一套 HTML 取值工具
+    ├── parse/                   六个平台各一个文件, 共用一套 HTML 取值工具
     ├── media/                   视频落盘与体积探测
     ├── send/                    防刷、降级与发送
     └── transport/               把框架的 HTTP 客户端接到解析内核上

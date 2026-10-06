@@ -11,7 +11,7 @@ const BrowserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 
 // MobileUA 分享页在移动端 UA 下才给完整数据, 小红书尤其明显。
 const MobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"
 
-// byteDanceUA 字节系站点(抖音/西瓜)对浏览器身份一律回 JS 挑战页, 这个老安卓 UA 才给 SSR 数据。
+// byteDanceUA 字节系站点(抖音)对浏览器身份一律回 JS 挑战页, 这个老安卓 UA 才给 SSR 数据。
 const byteDanceUA = "Mozilla/5.0 (Linux; Android 5.0; SM-G900P Build/LRX21T) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.25 Mobile Safari/537.36"
 
 // jsonAfter 从页面里抓 "marker = {...}" 那段 JSON。

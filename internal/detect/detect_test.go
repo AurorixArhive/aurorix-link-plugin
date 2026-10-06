@@ -10,13 +10,13 @@ func TestFindPlatformLinks(t *testing.T) {
 	}{
 		{"看看这个 https://v.douyin.com/iRNBho6/ 挺好笑的", Douyin, "https://v.douyin.com/iRNBho6/"},
 		{"https://www.douyin.com/video/7321234567890123456", Douyin, "https://www.douyin.com/video/7321234567890123456"},
-		{"分享 https://v.kuaishou.com/abc123", Kuaishou, "https://v.kuaishou.com/abc123"},
+		{"分享 https://share.xiaochuankeji.cn/hybrid/share/post?pid=423835942", Zuiyou, "https://share.xiaochuankeji.cn/hybrid/share/post?pid=423835942"},
 		{"https://www.bilibili.com/video/BV1GJ411x7h7?share_source=copy_web", Bilibili, "https://www.bilibili.com/video/BV1GJ411x7h7?share_source=copy_web"},
 		{"短链 https://b23.tv/AbCdEfG", Bilibili, "https://b23.tv/AbCdEfG"},
 		{"这段讲得不错 BV1GJ411x7h7", Bilibili, "https://www.bilibili.com/video/BV1GJ411x7h7"},
 		{"笔记 https://www.xiaohongshu.com/explore/65f0a1b2c3d4e5f60718293a?xsec_token=ABtoken&xsec_source=pc_share", Xhs, "https://www.xiaohongshu.com/explore/65f0a1b2c3d4e5f60718293a?xsec_token=ABtoken&xsec_source=pc_share"},
 		{"https://xhslink.com/o/9aBcDe", Xhs, "https://xhslink.com/o/9aBcDe"},
-		{"https://api.xiaoheihe.cn/v3/bbs/app/api/web/share?link_id=abc123", Heybox, "https://api.xiaoheihe.cn/v3/bbs/app/api/web/share?link_id=abc123"},
+		{"https://m.weibo.cn/detail/5267058893525035", Weibo, "https://m.weibo.cn/detail/5267058893525035"},
 	}
 	for _, c := range cases {
 		hit, ok := Find(c.text)
@@ -55,7 +55,7 @@ func TestFindIgnoresOtherContent(t *testing.T) {
 }
 
 func TestFindTakesFirstLink(t *testing.T) {
-	text := "https://www.example.com/x 然后 https://v.douyin.com/aaa/ 最后 https://v.kuaishou.com/bbb"
+	text := "https://www.example.com/x 然后 https://v.douyin.com/aaa/ 最后 https://www.miyoushe.com/ys/article/17414097"
 	hit, ok := Find(text)
 	if !ok || hit.Platform != Douyin {
 		t.Fatalf("应取第一个可解析链接: %+v", hit)

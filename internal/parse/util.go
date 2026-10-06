@@ -3,8 +3,11 @@ package parse
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 )
+
+var htmlTagPattern = regexp.MustCompile(`<[^>]*>`)
 
 // hostOf 取域名, 解析失败返回空串(调用方按"没有域名"处理)。
 func hostOf(rawURL string) string {
@@ -78,4 +81,9 @@ func number(v any) int {
 // replacePlaywm 分享页给的是带水印地址, 把 playwm 换成 play 就是原片。
 func replacePlaywm(raw string) string {
 	return strings.Replace(raw, "playwm", "play", 1)
+}
+
+// plainText 把 HTML 片段变成可读文本: 标签换空格后折叠连续空白, 否则文案里会夹一串空格。
+func plainText(body string) string {
+	return strings.Join(strings.Fields(htmlTagPattern.ReplaceAllString(body, " ")), " ")
 }

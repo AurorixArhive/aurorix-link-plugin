@@ -24,16 +24,23 @@ func (d *douyin) Parse(rawURL string) (model.Media, error) {
 		return model.Media{}, err
 	}
 
-	// 移动端分享页是唯一稳定给出作品数据的入口, 桌面页要签名。
-	resp, err := d.env.Get("https://www.iesdouyin.com/share/video/"+id+"/", d.headers())
-	if err != nil {
-		return model.Media{}, err
+	// 分享页偶发返回一版没有作品数据的页面(实测遇到过一次, 重发就正常),
+	// 所以给它两次机会; 失败一次就报错的话, 用户看到的是"这条链接解析不了"。
+	const attempts = 2
+	var lastErr error
+	for i := 0; i < attempts; i++ {
+		// 移动端分享页是唯一稳定给出作品数据的入口, 桌面页要签名。
+		resp, err := d.env.Get("https://www.iesdouyin.com/share/video/"+id+"/", d.headers())
+		if err != nil {
+			return model.Media{}, err
+		}
+		item, err := douyinItem(resp.Text())
+		if err == nil {
+			return douyinMedia(item, id), nil
+		}
+		lastErr = err
 	}
-	item, err := douyinItem(resp.Text())
-	if err != nil {
-		return model.Media{}, err
-	}
-	return douyinMedia(item, id), nil
+	return model.Media{}, lastErr
 }
 
 func (d *douyin) identify(rawURL string) (string, error) {

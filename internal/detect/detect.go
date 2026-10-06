@@ -10,33 +10,19 @@ import (
 const (
 	Bilibili = "bilibili"
 	Douyin   = "douyin"
-	Kuaishou = "kuaishou"
 	Xhs      = "xhs"
-	Heybox   = "heybox"
-	Acfun    = "acfun"
 	Weibo    = "weibo"
 	Miyoushe = "miyoushe"
-	Weishi   = "weishi"
 	Zuiyou   = "zuiyou"
-	Ixigua   = "ixigua"
-	Pipixia  = "pipixia"
-	Xsj      = "xsj"
 )
 
 var names = map[string]string{
 	Bilibili: "B站",
 	Douyin:   "抖音",
-	Kuaishou: "快手",
 	Xhs:      "小红书",
-	Heybox:   "小黑盒",
-	Acfun:    "AcFun",
 	Weibo:    "微博",
 	Miyoushe: "米游社",
-	Weishi:   "微视",
 	Zuiyou:   "最右",
-	Ixigua:   "西瓜视频",
-	Pipixia:  "皮皮虾",
-	Xsj:      "QQ小世界",
 }
 
 // Name 平台的中文名, 用于文案。
@@ -49,11 +35,7 @@ func Name(platform string) string {
 
 // Platforms 全部支持的平台, 供帮助文案与配置项遍历。
 func Platforms() []string {
-	return []string{
-		Bilibili, Douyin, Kuaishou, Xhs, Heybox,
-		Acfun, Weibo, Miyoushe, Weishi, Zuiyou,
-		Ixigua, Pipixia, Xsj,
-	}
+	return []string{Bilibili, Douyin, Xhs, Weibo, Miyoushe, Zuiyou}
 }
 
 // Hit 一个命中的作品链接。
@@ -137,28 +119,14 @@ func platformOf(host string) string {
 			return ""
 		}
 		return Douyin
-	case hostIs(host, "kuaishou.com", "chenzhongtech.com", "gifshow.com"):
-		return Kuaishou
 	case hostIs(host, "xiaohongshu.com", "xhslink.com", "xhslink.cn"):
 		return Xhs
-	case hostIs(host, "xiaoheihe.cn", "heybox.cn"):
-		return Heybox
-	case hostIs(host, "acfun.cn", "acfun.com"):
-		return Acfun
 	case hostIs(host, "weibo.com", "weibo.cn"):
 		return Weibo
 	case hostIs(host, "miyoushe.com", "mihoyo.com"):
 		return Miyoushe
-	case hostIs(host, "weishi.qq.com"):
-		return Weishi
 	case hostIs(host, "xiaochuankeji.cn", "zuiyou.com"):
 		return Zuiyou
-	case hostIs(host, "ixigua.com"):
-		return Ixigua
-	case hostIs(host, "pipix.com", "pipigx.com"):
-		return Pipixia
-	case hostIs(host, "xsj.qq.com"):
-		return Xsj
 	}
 	return ""
 }

@@ -31,7 +31,7 @@ func init() {
 	plugin.Register(&plugin.Plugin{
 		Id:          PluginID,
 		Name:        "视频解析",
-		Description: "直接发抖音/快手/B站/小红书等 13 个平台的分享链接, 自动回视频与图文",
+		Description: "直接发 B站/抖音/小红书/微博/米游社/最右 链接, 自动回视频与图文",
 		TemplateFS:  templateFS,
 		Config:      configFields(),
 		ApplyConfig: cfg.Apply,
