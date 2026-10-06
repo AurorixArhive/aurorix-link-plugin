@@ -22,10 +22,10 @@ var (
 )
 
 type bilibili struct {
-	client Client
+	env *env
 }
 
-func newBilibili(client Client) *bilibili { return &bilibili{client: client} }
+func newBilibili(env *env) *bilibili { return &bilibili{env: env} }
 
 type bilibiliView struct {
 	Code int    `json:"code"`
@@ -116,7 +116,7 @@ func (b *bilibili) follow(rawURL string) (string, error) {
 	if !strings.Contains(host, "b23.tv") && !strings.Contains(host, "bili2233.cn") {
 		return rawURL, nil
 	}
-	resp, err := b.client.Get(rawURL, map[string]string{"User-Agent": BrowserUA})
+	resp, err := b.env.Get(rawURL, map[string]string{"User-Agent": BrowserUA})
 	if err != nil {
 		return "", fmt.Errorf("短链展开失败: %w", err)
 	}
@@ -168,7 +168,7 @@ func (b *bilibili) seedBuvid() {
 	if err := b.get(bilibiliSPIAPI, &spi); err != nil || spi.Data.B3 == "" {
 		return
 	}
-	_ = b.client.SetCookie("https://www.bilibili.com", "buvid3", spi.Data.B3)
+	_ = b.env.SetCookie("https://www.bilibili.com", "buvid3", spi.Data.B3)
 }
 
 func (b *bilibili) get(target string, out any, headers ...map[string]string) error {
@@ -178,7 +178,7 @@ func (b *bilibili) get(target string, out any, headers ...map[string]string) err
 			head[k] = v
 		}
 	}
-	resp, err := b.client.Get(target, head)
+	resp, err := b.env.Get(target, head)
 	if err != nil {
 		return err
 	}

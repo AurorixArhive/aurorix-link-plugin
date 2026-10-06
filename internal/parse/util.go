@@ -74,3 +74,8 @@ func number(v any) int {
 	}
 	return 0
 }
+
+// replacePlaywm 分享页给的是带水印地址, 把 playwm 换成 play 就是原片。
+func replacePlaywm(raw string) string {
+	return strings.Replace(raw, "playwm", "play", 1)
+}

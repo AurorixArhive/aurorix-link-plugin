@@ -15,6 +15,7 @@ import (
 // defaults 是没配置时用的值。每一项都能在管理台改, 改完立刻生效。
 var defaults = send.Config{
 	Enabled:       allPlatforms(true),
+	Cookies:       map[string]string{},
 	GroupCooldown: 10 * time.Second,
 	LinkTTL:       10 * time.Minute,
 	Timeout:       30 * time.Second,
@@ -57,9 +58,21 @@ func (s *settings) Apply(values map[string]any) error {
 	current.MaxDuration = number(values, "max_duration_minutes", defaults.MaxDuration/60) * 60
 	current.MaxSizeMB = number(values, "max_size_mb", defaults.MaxSizeMB)
 	current.SendVideo = boolean(values, "send_video", defaults.SendVideo)
+	current.Cookies = cookies(values)
 
 	s.value.Store(&current)
 	return nil
+}
+
+// cookies 只收填了内容的平台; 空串是"没配", 不能当成空 Cookie 发出去。
+func cookies(values map[string]any) map[string]string {
+	out := make(map[string]string, len(cookiePlatforms))
+	for _, platform := range cookiePlatforms {
+		if value := strings.TrimSpace(text(values, cookieKey(platform))); value != "" {
+			out[platform] = value
+		}
+	}
+	return out
 }
 
 func allPlatforms(enabled bool) map[string]bool {
@@ -147,7 +160,7 @@ func boolean(values map[string]any, key string, fallback bool) bool {
 }
 
 func configFields() []plugin.ConfigField {
-	return []plugin.ConfigField{
+	fields := []plugin.ConfigField{
 		{
 			Key:         "group_cooldown_seconds",
 			Label:       "群内冷却（秒）",
@@ -185,9 +198,32 @@ func configFields() []plugin.ConfigField {
 		{
 			Key:         "disabled_platforms",
 			Label:       "关闭的平台",
-			Description: "填平台名，逗号分隔，例如：快手,小黑盒。留空表示五个平台全开。",
+			Description: "填平台名，逗号分隔，例如：快手,小黑盒。留空表示 13 个平台全开。",
 			Type:        "text",
 			Placeholder: "快手,小黑盒",
 		},
 	}
+	return append(fields, cookieFields()...)
+}
+
+// cookiePlatforms 是要登录态才拿得到数据的平台, 每个在管理台里给一个输入框。
+// 没填不影响其他平台: 该平台解析失败会退成卡片, 不会连带把别的平台搞坏。
+var cookiePlatforms = []string{
+	detect.Xhs, detect.Kuaishou, detect.Weibo, detect.Weishi, detect.Miyoushe,
+}
+
+func cookieKey(platform string) string { return "cookie_" + platform }
+
+func cookieFields() []plugin.ConfigField {
+	fields := make([]plugin.ConfigField, 0, len(cookiePlatforms))
+	for _, platform := range cookiePlatforms {
+		fields = append(fields, plugin.ConfigField{
+			Key:         cookieKey(platform),
+			Label:       detect.Name(platform) + " Cookie",
+			Description: "填你自己浏览器里的 Cookie（" + detect.Name(platform) + " 需要登录态才能拿到作品数据）。留空表示不解析该平台。",
+			Type:        "password",
+			Placeholder: "浏览器 F12 → Network → 任一请求的 Cookie",
+		})
+	}
+	return fields
 }

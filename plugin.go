@@ -20,7 +20,7 @@ const PluginID = "video"
 func init() {
 	cfg := newSettings()
 	client := requests.Init(20)
-	pipeline := send.New(parse.New(transport.HTTP{Client: client}), cfg.Get)
+	pipeline := send.New(parse.New(transport.HTTP{Client: client}, cookieOf(cfg)), cfg.Get)
 
 	// 无感: 群里任何人发链接就解析, 单聊同样。@ 机器人 发链接也认。
 	handle := func(ctx *event.Context, e *event.MessageEvent) { pipeline.Handle(ctx, e) }
@@ -31,9 +31,14 @@ func init() {
 	plugin.Register(&plugin.Plugin{
 		Id:          PluginID,
 		Name:        "视频解析",
-		Description: "直接发抖音/快手/B站/小红书/小黑盒链接, 自动回视频与图文",
+		Description: "直接发抖音/快手/B站/小红书等 13 个平台的分享链接, 自动回视频与图文",
 		TemplateFS:  templateFS,
 		Config:      configFields(),
 		ApplyConfig: cfg.Apply,
 	})
+}
+
+// cookieOf 把配置里的登录态接给解析内核。做成函数而不是快照: 管理台改完, 下一次解析就用新的。
+func cookieOf(cfg *settings) parse.Creds {
+	return func(platform string) string { return cfg.Get().Cookie(platform) }
 }

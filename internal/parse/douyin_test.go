@@ -14,7 +14,7 @@ func TestDouyinVideo(t *testing.T) {
 	client := newFake(map[string]string{
 		"https://www.iesdouyin.com/share/video/7321234567890123456/": douyinVideoPage,
 	})
-	got, err := newDouyin(client).Parse("https://www.douyin.com/video/7321234567890123456")
+	got, err := newDouyin(testEnv(client, nil)).Parse("https://www.douyin.com/video/7321234567890123456")
 	if err != nil {
 		t.Fatalf("解析失败: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestDouyinShortLink(t *testing.T) {
 	client := newFake(map[string]string{
 		"https://www.iesdouyin.com/share/video/7321234567890123456/": douyinVideoPage,
 	}).withRedirect("https://v.douyin.com/iRNBho6/", "https://www.iesdouyin.com/share/video/7321234567890123456/")
-	got, err := newDouyin(client).Parse("https://v.douyin.com/iRNBho6/")
+	got, err := newDouyin(testEnv(client, nil)).Parse("https://v.douyin.com/iRNBho6/")
 	if err != nil {
 		t.Fatalf("短链解析失败: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestDouyinAlbum(t *testing.T) {
 	client := newFake(map[string]string{
 		"https://www.iesdouyin.com/share/video/7331234567890123456/": douyinAlbumPage,
 	})
-	got, err := newDouyin(client).Parse("https://www.douyin.com/video/7331234567890123456")
+	got, err := newDouyin(testEnv(client, nil)).Parse("https://www.douyin.com/video/7331234567890123456")
 	if err != nil {
 		t.Fatalf("解析失败: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestDouyinPageWithoutData(t *testing.T) {
 	client := newFake(map[string]string{
 		"https://www.iesdouyin.com/share/video/7321234567890123456/": "<html>没有数据的页面</html>",
 	})
-	if _, err := newDouyin(client).Parse("https://www.douyin.com/video/7321234567890123456"); err == nil {
+	if _, err := newDouyin(testEnv(client, nil)).Parse("https://www.douyin.com/video/7321234567890123456"); err == nil {
 		t.Fatal("没有作品数据时应报错")
 	}
 }

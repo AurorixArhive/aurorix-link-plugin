@@ -15,7 +15,7 @@ func TestKuaishouVideo(t *testing.T) {
 		"https://www.kuaishou.com/short-video/abc": kuaishouPage,
 	}).withRedirect("https://v.kuaishou.com/abc123", "https://www.kuaishou.com/short-video/abc")
 
-	got, err := newKuaishou(client).Parse("https://v.kuaishou.com/abc123")
+	got, err := newKuaishou(testEnv(client, nil)).Parse("https://v.kuaishou.com/abc123")
 	if err != nil {
 		t.Fatalf("解析失败: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestKuaishouAtlas(t *testing.T) {
 	client := newFake(map[string]string{
 		"https://www.kuaishou.com/short-video/xyz": kuaishouAtlasPage,
 	})
-	got, err := newKuaishou(client).Parse("https://www.kuaishou.com/short-video/xyz")
+	got, err := newKuaishou(testEnv(client, nil)).Parse("https://www.kuaishou.com/short-video/xyz")
 	if err != nil {
 		t.Fatalf("解析失败: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestKuaishouAtlas(t *testing.T) {
 
 func TestKuaishouWithoutData(t *testing.T) {
 	client := newFake(map[string]string{"https://www.kuaishou.com/short-video/empty": "<html></html>"})
-	if _, err := newKuaishou(client).Parse("https://www.kuaishou.com/short-video/empty"); err == nil {
+	if _, err := newKuaishou(testEnv(client, nil)).Parse("https://www.kuaishou.com/short-video/empty"); err == nil {
 		t.Fatal("页面没有数据时应报错")
 	}
 }

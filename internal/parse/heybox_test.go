@@ -11,7 +11,7 @@ func TestHeyboxLinkImagePost(t *testing.T) {
 	client := newFake(map[string]string{
 		"https://api.xiaoheihe.cn/bbs/app/link/tree/v2": heyboxTreeJSON,
 	})
-	got, err := newHeybox(client).Parse("https://api.xiaoheihe.cn/v3/bbs/app/api/web/share?link_id=abc123def456")
+	got, err := newHeybox(testEnv(client, nil)).Parse("https://api.xiaoheihe.cn/v3/bbs/app/api/web/share?link_id=abc123def456")
 	if err != nil {
 		t.Fatalf("解析失败: %v", err)
 	}

@@ -9,14 +9,14 @@ import (
 )
 
 type kuaishou struct {
-	client Client
+	env *env
 }
 
-func newKuaishou(client Client) *kuaishou { return &kuaishou{client: client} }
+func newKuaishou(env *env) *kuaishou { return &kuaishou{env: env} }
 
 func (k *kuaishou) Parse(rawURL string) (model.Media, error) {
 	// 短链要跟随跳转, 落地页里才有 INIT_STATE。
-	resp, err := k.client.Get(rawURL, k.headers())
+	resp, err := k.env.Get(rawURL, k.headers())
 	if err != nil {
 		return model.Media{}, fmt.Errorf("快手页面打不开: %w", err)
 	}

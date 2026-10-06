@@ -16,7 +16,7 @@ func TestXhsNoteWithImages(t *testing.T) {
 	client := newFake(map[string]string{
 		"https://www.xiaohongshu.com/explore/65f0a1b2c3d4e5f60718293a?xsec_token=ABtoken": xhsNotePage,
 	})
-	got, err := newXhs(client).Parse("https://www.xiaohongshu.com/explore/65f0a1b2c3d4e5f60718293a?xsec_token=ABtoken")
+	got, err := newXhs(testEnv(client, nil)).Parse("https://www.xiaohongshu.com/explore/65f0a1b2c3d4e5f60718293a?xsec_token=ABtoken")
 	if err != nil {
 		t.Fatalf("解析失败: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestXhsVideoNote(t *testing.T) {
 	client := newFake(map[string]string{
 		"https://www.xiaohongshu.com/explore/66f0a1b2c3d4e5f60718293a": xhsVideoPage,
 	})
-	got, err := newXhs(client).Parse("https://www.xiaohongshu.com/explore/66f0a1b2c3d4e5f60718293a")
+	got, err := newXhs(testEnv(client, nil)).Parse("https://www.xiaohongshu.com/explore/66f0a1b2c3d4e5f60718293a")
 	if err != nil {
 		t.Fatalf("解析失败: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestXhsLoginWall(t *testing.T) {
 	client := newFake(map[string]string{
 		"https://www.xiaohongshu.com/explore/67f0a1b2c3d4e5f60718293a": "<html><body>请登录</body></html>",
 	})
-	_, err := newXhs(client).Parse("https://www.xiaohongshu.com/explore/67f0a1b2c3d4e5f60718293a")
+	_, err := newXhs(testEnv(client, nil)).Parse("https://www.xiaohongshu.com/explore/67f0a1b2c3d4e5f60718293a")
 	if err == nil {
 		t.Fatal("没有笔记数据时应报错")
 	}

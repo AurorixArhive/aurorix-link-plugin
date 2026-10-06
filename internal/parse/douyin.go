@@ -13,10 +13,10 @@ import (
 var douyinIDPattern = regexp.MustCompile(`/(?:video|note)/(\d+)`)
 
 type douyin struct {
-	client Client
+	env *env
 }
 
-func newDouyin(client Client) *douyin { return &douyin{client: client} }
+func newDouyin(env *env) *douyin { return &douyin{env: env} }
 
 func (d *douyin) Parse(rawURL string) (model.Media, error) {
 	id, err := d.identify(rawURL)
@@ -25,7 +25,7 @@ func (d *douyin) Parse(rawURL string) (model.Media, error) {
 	}
 
 	// 移动端分享页是唯一稳定给出作品数据的入口, 桌面页要签名。
-	resp, err := d.client.Get("https://www.iesdouyin.com/share/video/"+id+"/", d.headers())
+	resp, err := d.env.Get("https://www.iesdouyin.com/share/video/"+id+"/", d.headers())
 	if err != nil {
 		return model.Media{}, err
 	}
@@ -40,7 +40,7 @@ func (d *douyin) identify(rawURL string) (string, error) {
 	if id := douyinIDPattern.FindStringSubmatch(rawURL); id != nil {
 		return id[1], nil
 	}
-	resp, err := d.client.Get(rawURL, d.headers())
+	resp, err := d.env.Get(rawURL, d.headers())
 	if err != nil {
 		return "", fmt.Errorf("短链展开失败: %w", err)
 	}
@@ -55,7 +55,7 @@ func (d *douyin) identify(rawURL string) (string, error) {
 
 func (d *douyin) headers() map[string]string {
 	return map[string]string{
-		"User-Agent": MobileUA,
+		"User-Agent": byteDanceUA,
 		"Referer":    "https://www.douyin.com/",
 	}
 }
@@ -109,7 +109,7 @@ func douyinMedia(item map[string]any, id string) model.Media {
 	if url := douyinPlayURL(video); url != "" {
 		media.Video = &model.Video{
 			URL:     url,
-			Headers: map[string]string{"User-Agent": MobileUA, "Referer": "https://www.douyin.com/"},
+			Headers: map[string]string{"User-Agent": byteDanceUA, "Referer": "https://www.douyin.com/"},
 		}
 	}
 	return media
@@ -121,7 +121,7 @@ func douyinPlayURL(video map[string]any) string {
 	if raw == "" {
 		return ""
 	}
-	return strings.Replace(raw, "playwm", "play", 1)
+	return replacePlaywm(raw)
 }
 
 // collectURLs 从图集里按顺序取每张图的地址。

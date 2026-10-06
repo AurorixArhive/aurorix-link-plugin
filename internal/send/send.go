@@ -25,13 +25,20 @@ const templateCard = "card"
 
 // Config 是这一层读到的配置快照。
 type Config struct {
-	Enabled       map[string]bool
+	Enabled map[string]bool
+	// Cookies 按平台存登录态, 键是平台名; 需要登录的平台才用得上。
+	Cookies       map[string]string
 	GroupCooldown time.Duration
 	LinkTTL       time.Duration
 	Timeout       time.Duration
 	SendVideo     bool
 	MaxDuration   int
 	MaxSizeMB     int
+}
+
+// Cookie 该平台配置的登录态; 没配置返回空串, 解析器按"匿名"处理。
+func (c Config) Cookie(platform string) string {
+	return c.Cookies[platform]
 }
 
 type Pipeline struct {

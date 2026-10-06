@@ -14,6 +14,11 @@ type fakeClient struct {
 	cookies map[string]string
 }
 
+// testEnv 把假客户端包成解析器要的 env; cookies 里放登录态, 默认没有。
+func testEnv(client Client, cookies map[string]string) *env {
+	return &env{Client: client, creds: func(platform string) string { return cookies[platform] }}
+}
+
 func newFake(pages map[string]string) *fakeClient {
 	return &fakeClient{pages: pages, links: map[string]string{}, cookies: map[string]string{}}
 }

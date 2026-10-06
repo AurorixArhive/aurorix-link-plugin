@@ -33,16 +33,16 @@ var (
 )
 
 type heybox struct {
-	client Client
+	env *env
 }
 
-func newHeybox(client Client) *heybox { return &heybox{client: client} }
+func newHeybox(env *env) *heybox { return &heybox{env: env} }
 
 func (h *heybox) Parse(rawURL string) (model.Media, error) {
 	linkID := heyboxLinkID(rawURL)
 	if linkID == "" {
 		// 分享短链要把跳转后的地址拿来看, link_id 在那一跳里
-		resp, err := h.client.Get(rawURL, h.headers(""))
+		resp, err := h.env.Get(rawURL, h.headers(""))
 		if err != nil {
 			return model.Media{}, fmt.Errorf("小黑盒分享页打不开: %w", err)
 		}
@@ -88,7 +88,7 @@ func (h *heybox) tree(linkID string) (map[string]any, error) {
 		"version":       {"999.0.4"},
 		"app":           {"heybox"},
 	}
-	resp, err := h.client.Get(heyboxTreeAPI+"?"+query.Encode(), h.headers(""))
+	resp, err := h.env.Get(heyboxTreeAPI+"?"+query.Encode(), h.headers(""))
 	if err != nil {
 		return nil, fmt.Errorf("小黑盒接口请求失败: %w", err)
 	}

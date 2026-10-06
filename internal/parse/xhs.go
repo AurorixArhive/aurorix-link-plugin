@@ -10,14 +10,14 @@ import (
 )
 
 type xhs struct {
-	client Client
+	env *env
 }
 
-func newXhs(client Client) *xhs { return &xhs{client: client} }
+func newXhs(env *env) *xhs { return &xhs{env: env} }
 
 func (x *xhs) Parse(rawURL string) (model.Media, error) {
 	// 移动端 UA 才拿得到笔记页数据; xhslink 短链用桌面 UA 会被踢到 404。
-	resp, err := x.client.Get(rawURL, x.headers())
+	resp, err := x.env.Get(rawURL, x.headers())
 	if err != nil {
 		return model.Media{}, fmt.Errorf("小红书页面打不开: %w", err)
 	}
