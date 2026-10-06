@@ -11,6 +11,7 @@ import (
 
 	"github.com/KasumiYuku/Aurorix/lib/event"
 	"github.com/KasumiYuku/Aurorix/lib/logx"
+	"github.com/KasumiYuku/Aurorix/lib/structers"
 	"github.com/KasumiYuku/Aurorix/lib/templates"
 
 	"video-plugin/internal/detect"
@@ -61,9 +62,9 @@ func New(parser *parse.Set, cfg func() Config) *Pipeline {
 // 认不出链接的消息一律静默 —— 群里聊什么都能触发的机器人只会被踢。
 // 但静默前必须留痕: 否则"发了链接没反应"在线上只能靠猜。
 func (p *Pipeline) Handle(ctx *event.Context, e *event.MessageEvent) {
-	trace(e)
 	hit, ok := hitOf(e)
 	if !ok {
+		traceUnmatched(e)
 		return
 	}
 	cfg := p.cfg()
@@ -90,25 +91,64 @@ func (p *Pipeline) Handle(ctx *event.Context, e *event.MessageEvent) {
 	p.deliver(ctx, e, got, cfg)
 }
 
-// trace 记下每条进来的消息。debug 级别, 平时不开。
-// 排查"发了链接没反应"时它一眼分开三种情况: 消息根本没到、卡片里没有链接、链接认不出来。
-func trace(e *event.MessageEvent) {
-	ark := "-"
-	if e.Ark != nil {
-		ark = e.Ark.ArkType + "/" + e.Ark.Prompt
+// traceUnmatched 记下"看着像卡片/转发/媒体, 却没认出链接"的消息。
+//
+// 普通聊天一个字都不记 —— 群里每句话都打一条日志, 日志里就什么都看不出来了。
+// 真正需要留痕的只有那几种: 平台推了东西、我们没能识别出内容。
+func traceUnmatched(e *event.MessageEvent) {
+	if !worthTracing(e) {
+		return
 	}
-	log.Debugf("消息 type=%s msg_type=%d ark=%s urls=%v 正文=%.40q",
-		e.Type(), e.MsgType, ark, e.Ark.URLs(), e.Content)
+	log.Debugf("没认出链接: msg_type=%d 元素=%d 附件=%d ark=%s urls=%v 正文=%.40q",
+		e.MsgType, len(e.Elements), len(e.Attachments), arkLabel(e.Ark), e.Ark.URLs(), e.Content)
+	if len(e.Raw) > 0 {
+		// 平台推的形状框架没建模时, 只有原始载荷说得清到底收到了什么。
+		log.Debugf("原始载荷: %.600s", e.Raw)
+	}
 }
 
+// worthTracing 判断这条消息值不值得留痕: 卡片、转发、富媒体, 或者连正文都没有的空消息。
+// 有正文的纯文本是正常聊天, 不看。
+func worthTracing(e *event.MessageEvent) bool {
+	if e.Ark != nil || len(e.Elements) > 0 || e.MsgType != 0 {
+		return true
+	}
+	return e.Content == "" && len(e.Attachments) == 0
+}
+
+// hitOf 从这条消息里找第一个能解析的链接。
+// 转发的卡片与合并转发: 正文和卡片都在消息元素里, 顶层 Content 与 Ark 都是空的。
 func hitOf(e *event.MessageEvent) (detect.Hit, bool) {
+	// 光秃秃的 BV 号只可能出现在正文里
 	if hit, ok := detect.Find(e.Content); ok {
 		return hit, true
 	}
-	if e.Ark != nil {
-		return detect.FromArk(e.Ark.URLs())
+	if hit, ok := fromArk(e.Ark); ok {
+		return hit, true
+	}
+	for _, el := range structers.FlattenElements(e.Elements) {
+		if hit, ok := detect.Find(el.Content); ok {
+			return hit, true
+		}
+		if hit, ok := fromArk(el.ArkData); ok {
+			return hit, true
+		}
 	}
 	return detect.Hit{}, false
+}
+
+func fromArk(ark *structers.ArkData) (detect.Hit, bool) {
+	if ark == nil {
+		return detect.Hit{}, false
+	}
+	return detect.FromArk(ark.URLs())
+}
+
+func arkLabel(ark *structers.ArkData) string {
+	if ark == nil {
+		return "-"
+	}
+	return ark.ArkType + "/" + ark.Prompt
 }
 
 func (p *Pipeline) parse(hit detect.Hit, cfg Config) (model.Media, error) {

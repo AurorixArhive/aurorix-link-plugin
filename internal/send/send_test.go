@@ -6,6 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/KasumiYuku/Aurorix/lib/event"
+	"github.com/KasumiYuku/Aurorix/lib/message"
+	"github.com/KasumiYuku/Aurorix/lib/structers"
+
 	"video-plugin/internal/model"
 )
 
@@ -121,5 +125,27 @@ func TestSizeText(t *testing.T) {
 	}
 	if got := sizeText(512 << 10); got != "512 KB" {
 		t.Fatalf("sizeText = %q", got)
+	}
+}
+
+// 普通聊天不该留痕: 群里每句话都打一条日志, 日志里就什么都看不出来了。
+func TestWorthTracingOnlyOnCardOrForward(t *testing.T) {
+	if worthTracing(&event.MessageEvent{Content: "今天天气不错"}) {
+		t.Fatal("有正文的纯文本不该留痕")
+	}
+	if worthTracing(&event.MessageEvent{Content: "看图", Attachments: []message.Attachment{{ContentType: "image/png"}}}) {
+		t.Fatal("带图的普通消息不该留痕")
+	}
+
+	cases := map[string]*event.MessageEvent{
+		"卡片":  {MsgType: 3, Ark: &structers.ArkData{ArkType: "miniapp"}},
+		"转发":  {MsgType: 102, Elements: []structers.MsgElement{{Content: "被转发的内容"}}},
+		"富媒体": {MsgType: 7},
+		"空消息": {},
+	}
+	for name, ev := range cases {
+		if !worthTracing(ev) {
+			t.Fatalf("%s 应该留痕: %+v", name, ev)
+		}
 	}
 }
