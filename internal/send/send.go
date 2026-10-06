@@ -21,7 +21,11 @@ import (
 
 var log = logx.New("video")
 
-const templateCard = "card"
+const (
+	templateCard = "card"
+	templateFail = "fail"
+	templateNote = "note"
+)
 
 // Config 是这一层读到的配置快照。
 type Config struct {
@@ -55,7 +59,9 @@ func New(parser *parse.Set, cfg func() Config) *Pipeline {
 
 // Handle 是消息事件入口: 认链接 → 防刷 → 解析 → 发送。
 // 认不出链接的消息一律静默 —— 群里聊什么都能触发的机器人只会被踢。
+// 但静默前必须留痕: 否则"发了链接没反应"在线上只能靠猜。
 func (p *Pipeline) Handle(ctx *event.Context, e *event.MessageEvent) {
+	trace(e)
 	hit, ok := hitOf(e)
 	if !ok {
 		return
@@ -78,10 +84,21 @@ func (p *Pipeline) Handle(ctx *event.Context, e *event.MessageEvent) {
 
 	got, err := p.parse(hit, cfg)
 	if err != nil {
-		p.fail(ctx, err)
+		p.fail(ctx, e, err)
 		return
 	}
 	p.deliver(ctx, e, got, cfg)
+}
+
+// trace 记下每条进来的消息。debug 级别, 平时不开。
+// 排查"发了链接没反应"时它一眼分开三种情况: 消息根本没到、卡片里没有链接、链接认不出来。
+func trace(e *event.MessageEvent) {
+	ark := "-"
+	if e.Ark != nil {
+		ark = e.Ark.ArkType + "/" + e.Ark.Prompt
+	}
+	log.Debugf("消息 type=%s msg_type=%d ark=%s urls=%v 正文=%.40q",
+		e.Type(), e.MsgType, ark, e.Ark.URLs(), e.Content)
 }
 
 func hitOf(e *event.MessageEvent) (detect.Hit, bool) {
@@ -145,7 +162,7 @@ func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got model.
 		defer os.Remove(videoPath)
 	}
 
-	card, err := ctx.MarkdownTemplate(templateCard, &templates.Args{
+	cardMsg, err := ctx.MarkdownTemplate(templateCard, &templates.Args{
 		"emoji":    emoji(got),
 		"platform": got.Platform,
 		"title":    got.Title,
@@ -159,20 +176,32 @@ func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got model.
 		return
 	}
 
-	chain := ctx.Msg()
+	// 卡片与视频分成两条链发。视频要过 QQ 的 COS 分片上传, 是整条链路里最容易失败的一步;
+	// 挂在同一条链上时它一失败, 这次发送整体算失败, 而用户那边看到的就是"发了链接没反应"。
+	card := ctx.Msg()
 	if e.MessageID != "" {
 		// 引用原消息: 群里同时可能有好几条链接, 不引用就不知道这条结果对的是谁发的
-		chain.Quote(e.MessageID)
+		card.Quote(e.MessageID)
 	}
-	chain.Add(card)
-	if videoPath != "" {
-		chain.Video(videoPath)
-	}
+	card.Add(cardMsg)
 	for _, image := range got.Images {
-		chain.Image(image, "图片")
+		card.Image(image, "图片")
 	}
-	if err := chain.Send(); err != nil {
-		log.Warnf("发送失败: %v", err)
+	if err := card.Send(); err != nil {
+		log.Warnf("发送卡片失败: %v", err)
+		return
+	}
+	if videoPath == "" {
+		return
+	}
+
+	video := ctx.Msg()
+	if e.MessageID != "" {
+		video.Quote(e.MessageID)
+	}
+	if err := video.Video(videoPath).Send(); err != nil {
+		log.Warnf("发送视频失败: %v", err)
+		p.say(ctx, e, templateNote, &templates.Args{"reason": "视频没传上去，点标题去原页面看"})
 	}
 }
 
@@ -194,7 +223,7 @@ func (p *Pipeline) videoPlan(got model.Media, cfg Config) (note string, path str
 		return fmt.Sprintf("视频 %s，超过 %d MB 上限，点标题去原页面看", sizeText(size), cfg.MaxSizeMB), ""
 	}
 
-	file, written, err := media.Download(got.Video.URL, got.Video.Headers, limitBytes, 3*time.Minute)
+	file, written, err := media.Download(got.Video.URL, got.Video.Headers, limitBytes)
 	if err != nil {
 		if errors.Is(err, media.ErrTooLarge) {
 			return fmt.Sprintf("视频超过 %d MB 上限，点标题去原页面看", cfg.MaxSizeMB), ""
@@ -206,14 +235,23 @@ func (p *Pipeline) videoPlan(got model.Media, cfg Config) (note string, path str
 	return "", file
 }
 
-func (p *Pipeline) fail(ctx *event.Context, err error) {
-	msg, err := ctx.MarkdownTemplate("fail", &templates.Args{"reason": reason(err)})
+func (p *Pipeline) fail(ctx *event.Context, e *event.MessageEvent, err error) {
+	p.say(ctx, e, templateFail, &templates.Args{"reason": reason(err)})
+}
+
+// say 补一句话。失败必须让用户看得见 —— 只写日志的话, 用户那边就是"发了链接没反应"。
+func (p *Pipeline) say(ctx *event.Context, e *event.MessageEvent, templateID string, args *templates.Args) {
+	msg, err := ctx.MarkdownTemplate(templateID, args)
 	if err != nil {
-		log.Warnf("渲染失败文案出错: %v", err)
+		log.Warnf("渲染 %s 文案出错: %v", templateID, err)
 		return
 	}
-	if err := msg.Send(); err != nil {
-		log.Warnf("发送失败文案出错: %v", err)
+	chain := ctx.Msg()
+	if e.MessageID != "" {
+		chain.Quote(e.MessageID)
+	}
+	if err := chain.Add(msg).Send(); err != nil {
+		log.Warnf("发送 %s 文案出错: %v", templateID, err)
 	}
 }
 

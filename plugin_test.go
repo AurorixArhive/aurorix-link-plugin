@@ -53,6 +53,17 @@ func TestFailTemplateRenders(t *testing.T) {
 	}
 }
 
+// 视频没传上去时要补一句话: 只写日志的话, 用户那边看到的就是"发了链接没反应"。
+func TestNoteTemplateRenders(t *testing.T) {
+	content, err := templates.FillFor(PluginID, "note", templates.Args{"reason": "视频没传上去，点标题去原页面看"})
+	if err != nil {
+		t.Fatalf("说明模板渲染失败: %v", err)
+	}
+	if !strings.Contains(content, "视频没传上去") {
+		t.Fatalf("说明文案没带出原因:\n%s", content)
+	}
+}
+
 func TestDefaultsHaveEveryPlatform(t *testing.T) {
 	got := newSettings().Get()
 	for _, platform := range []string{"bilibili", "douyin", "xhs", "weibo", "miyoushe", "zuiyou"} {
@@ -60,7 +71,7 @@ func TestDefaultsHaveEveryPlatform(t *testing.T) {
 			t.Fatalf("默认应开启 %s", platform)
 		}
 	}
-	if got.GroupCooldown != 10*time.Second || !got.SendVideo || got.MaxDuration != 600 {
+	if got.GroupCooldown != 10*time.Second || !got.SendVideo || got.MaxDuration != 600 || got.MaxSizeMB != 30 {
 		t.Fatalf("默认值不对: %+v", got)
 	}
 }

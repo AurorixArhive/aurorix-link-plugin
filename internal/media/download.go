@@ -18,7 +18,7 @@ var ErrTooLarge = errors.New("视频超过体积上限")
 //
 // 这里不走框架的请求客户端: 它是一次性把响应读进内存的, 几十上百兆的视频会把内存顶爆。
 // 下载必须边读边写盘, 所以单独用一个只做下载的客户端。
-func Download(rawURL string, headers map[string]string, limitBytes int64, timeout time.Duration) (string, int64, error) {
+func Download(rawURL string, headers map[string]string, limitBytes int64) (string, int64, error) {
 	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
 	if err != nil {
 		return "", 0, err
@@ -28,7 +28,7 @@ func Download(rawURL string, headers map[string]string, limitBytes int64, timeou
 		req.Header.Set(k, v)
 	}
 
-	client := &http.Client{Timeout: timeout}
+	client := &http.Client{Timeout: downloadBudget(limitBytes)}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", 0, fmt.Errorf("下载视频失败: %w", err)
@@ -58,6 +58,18 @@ func Download(rawURL string, headers map[string]string, limitBytes int64, timeou
 		return "", 0, ErrTooLarge
 	}
 	return file.Name(), written, nil
+}
+
+// downloadBudget 整个下载的预算。按体积上限推: 固定 3 分钟在慢上行(移动网络)上
+// 传不完 50MB, 而超时是上限不是目标 —— 文件小自然早结束。
+func downloadBudget(limitBytes int64) time.Duration {
+	const (
+		floor   = 2 * time.Minute
+		ceiling = 20 * time.Minute
+		rate    = 64 << 10 // 保守按 64 KiB/s 估
+	)
+	budget := floor + time.Duration(limitBytes/rate)*time.Second
+	return min(max(budget, floor), ceiling)
 }
 
 // ProbeSize 先问体积, 超限的就不下载了。

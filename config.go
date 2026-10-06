@@ -21,7 +21,7 @@ var defaults = send.Config{
 	Timeout:       30 * time.Second,
 	SendVideo:     true,
 	MaxDuration:   10 * 60,
-	MaxSizeMB:     50,
+	MaxSizeMB:     30,
 }
 
 type settings struct {
@@ -185,9 +185,9 @@ func configFields() []plugin.ConfigField {
 		{
 			Key:         "max_size_mb",
 			Label:       "视频体积上限（MB）",
-			Description: "超过这个体积的视频不发本体，只发卡片。QQ 上传大文件容易超时，默认 50。",
+			Description: "超过这个体积的视频不发本体，只发卡片。QQ 对视频的软限制是 30MB，超过会降级成文件（没有播放器），默认 30。",
 			Type:        "number",
-			Placeholder: "50",
+			Placeholder: "30",
 		},
 		{
 			Key:         "send_video",
