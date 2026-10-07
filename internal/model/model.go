@@ -33,11 +33,3 @@ func (m Media) Kind() string {
 		return "text"
 	}
 }
-
-// Summary 一行简介: 正文里能当文案用的那句话。
-func (m Media) Summary() string {
-	if m.Desc != "" {
-		return m.Desc
-	}
-	return m.Title
-}

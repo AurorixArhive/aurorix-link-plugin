@@ -1,8 +1,10 @@
 # {{emoji}} {{platform}}
 
 [**{{title}}**]({{url}})
-
-{{meta}}
-
-> {{desc}}
-{{note}}
+{{#each meta}}
+{{text}}
+{{/each}}{{#each desc}}
+> {{text}}
+{{/each}}{{#each note}}
+{{text}}
+{{/each}}

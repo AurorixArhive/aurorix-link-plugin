@@ -69,14 +69,17 @@ func TestVideoPlanSkipsWhenVideoDisabled(t *testing.T) {
 	}
 }
 
+// 什么都不认识时返回空串: 那一段就不该出现在卡片上, 而不是拿一句废话占位。
 func TestMetaLine(t *testing.T) {
 	cases := []struct {
 		media model.Media
 		want  string
 	}{
-		{model.Media{}, "点标题去原页面看"},
+		{model.Media{}, ""},
+		{model.Media{Title: "标题"}, ""},
 		{model.Media{Author: "某某", Duration: 95, Stat: "播放 1.2万"}, "某某 · 01:35 · 播放 1.2万"},
 		{model.Media{Author: "小美", Images: []string{"a", "b", "c"}}, "小美 · 3 张图"},
+		{model.Media{Author: "小美", Images: []string{"a"}}, "小美"},
 	}
 	for _, c := range cases {
 		if got := metaLine(c.media); got != c.want {
@@ -185,5 +188,38 @@ func TestDirectFailBlocksPlatform(t *testing.T) {
 	}
 	if p.blocked(directFailKey("douyin")) {
 		t.Fatal("不该连累别的平台")
+	}
+}
+
+// 空段落必须真的消失 —— 模板引擎靠空数组判断"这段不出现",
+// 塞个空串进去就会在卡片上留下一块空白引用。
+func TestParagraphSkipsEmpty(t *testing.T) {
+	for _, text := range []string{"", "   ", "\n\t"} {
+		if got := paragraph(text); len(got) != 0 {
+			t.Fatalf("空白文本应产出空段落, 得到 %#v", got)
+		}
+	}
+	got := paragraph(" 一段简介 ")
+	if len(got) != 1 {
+		t.Fatalf("有内容应产出恰好一段, 得到 %#v", got)
+	}
+	if text, _ := got[0].(map[string]any)["text"].(string); text != "一段简介" {
+		t.Fatalf("段落内容没去掉首尾空白: %#v", got)
+	}
+}
+
+// 简介和标题一字不差时不再重复一遍: 那看着像排版故障, 不像信息。
+func TestDescParagraphDropsTitleEcho(t *testing.T) {
+	if got := descParagraph(model.Media{Title: "标题", Desc: "标题"}); len(got) != 0 {
+		t.Fatalf("简介只是复述标题时不该出现: %#v", got)
+	}
+	if got := descParagraph(model.Media{Title: "标题", Desc: " 标题 "}); len(got) != 0 {
+		t.Fatalf("首尾空白不该让它变成另一段: %#v", got)
+	}
+	if got := descParagraph(model.Media{Title: "标题", Desc: "别的"}); len(got) != 1 {
+		t.Fatalf("有真简介时该出现: %#v", got)
+	}
+	if got := descParagraph(model.Media{Title: "标题"}); len(got) != 0 {
+		t.Fatalf("没简介时不该出现: %#v", got)
 	}
 }

@@ -275,9 +275,9 @@ func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got model.
 		"platform": got.Platform,
 		"title":    got.Title,
 		"url":      got.PageURL,
-		"meta":     metaLine(got),
-		"desc":     got.Summary(),
-		"note":     note,
+		"meta":     paragraph(metaLine(got)),
+		"desc":     descParagraph(got),
+		"note":     paragraph(note),
 	})
 	if err != nil {
 		log.Warnf("渲染卡片失败: %v", err)
@@ -364,7 +364,7 @@ func (p *Pipeline) videoPlan(got model.Media, cfg Config) (note string, src stri
 	// 但探测器看到的网和腾讯服务器看到的不是同一张 —— 实测出现过探测通过、QQ 十秒就报
 	// "富媒体文件上传超时"。所以这个平台一旦栽过, 一段时间内不再试直传: 白等一场之后还得再下一遍。
 	if !p.blocked(directFailKey(got.Platform)) && media.PubliclyFetchable(got.Video.URL, probeTimeout) {
-		log.Infof("直链可直传[%s], 交给 QQ 拉取 %s", detect.Name(got.Platform), got.Title)
+		log.Infof("直链可直传[%s %s], 交给 QQ 拉取 %s", detect.Name(got.Platform), sizeLabel(size), got.Title)
 		return "", got.Video.URL
 	}
 
@@ -378,6 +378,14 @@ func (p *Pipeline) videoPlan(got model.Media, cfg Config) (note string, src stri
 	}
 	log.Infof("已下载 %s (%s)", got.Title, sizeText(written))
 	return "", file
+}
+
+// sizeLabel 给日志用: 体积未知时直说, 别写成 "0 KB" 让人以为是真值。
+func sizeLabel(bytes int64) string {
+	if bytes <= 0 {
+		return "体积未知"
+	}
+	return sizeText(bytes)
 }
 
 // say 补一句话。只在"认出来了却决定不做"时用 —— 那种情况不说话, 用户分不清是坏了还是被限流。
@@ -421,10 +429,27 @@ func metaLine(got model.Media) string {
 	if len(got.Images) > 1 {
 		parts = append(parts, fmt.Sprintf("%d 张图", len(got.Images)))
 	}
-	if len(parts) == 0 {
-		return "点标题去原页面看"
-	}
 	return strings.Join(parts, " · ")
+}
+
+// paragraph 把一个段落包成 {{#each}} 吃得下的形态。
+// 模板引擎没有条件语法, 空数组是它唯一能表达"这段不出现"的方式 ——
+// 换成塞占位文字, 卡片上就会多出一块空白引用或一句废话。
+func paragraph(text string) []any {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return []any{}
+	}
+	return []any{map[string]any{"text": text}}
+}
+
+// descParagraph 简介段落; 和标题一字不差时不再重复一遍 ——
+// 那看着像排版故障, 不像信息。
+func descParagraph(got model.Media) []any {
+	if strings.TrimSpace(got.Desc) == strings.TrimSpace(got.Title) {
+		return []any{}
+	}
+	return paragraph(got.Desc)
 }
 
 func durationText(seconds int) string {
