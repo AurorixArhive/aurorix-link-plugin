@@ -172,3 +172,18 @@ func TestWorthTracingOnlyOnCardOrForward(t *testing.T) {
 		}
 	}
 }
+
+// 直传栽过的平台要记住: 再让 QQ 去拉一条它拉不到的链, 白等十几秒之后还得再下一遍。
+func TestDirectFailBlocksPlatform(t *testing.T) {
+	p := New(nil, nil)
+	if p.blocked(directFailKey("bilibili")) {
+		t.Fatal("没栽过不该拦")
+	}
+	p.claim(directFailKey("bilibili"), time.Minute)
+	if !p.blocked(directFailKey("bilibili")) {
+		t.Fatal("栽过之后该拦")
+	}
+	if p.blocked(directFailKey("douyin")) {
+		t.Fatal("不该连累别的平台")
+	}
+}

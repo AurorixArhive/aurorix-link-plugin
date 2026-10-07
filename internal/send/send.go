@@ -34,6 +34,10 @@ const skipNoticeGap = 30 * time.Second
 // probeTimeout 探直链、问体积这类小请求的预算; 它们只取 1 字节, 慢就是不值得等。
 const probeTimeout = 10 * time.Second
 
+// directFailTTL 直传栽过一次之后, 这个平台多久内不再试直传。
+// 让 QQ 去拉一条它拉不到的链, 白等十几秒之后还要再下一遍 —— 栽一次就够说明这条路走不通。
+const directFailTTL = 30 * time.Minute
+
 // Config 是这一层读到的配置快照。
 type Config struct {
 	Enabled map[string]bool
@@ -122,6 +126,17 @@ func (p *Pipeline) release(key string) {
 	p.mu.Lock()
 	delete(p.recent, key)
 	p.mu.Unlock()
+}
+
+// directFailKey 记"这个平台的直链交给 QQ 是拉不通的"。
+func directFailKey(platform string) string { return "nofetch:" + platform }
+
+// blocked 只读地问一句"这个 key 还在窗口里吗", 不占用额度。
+func (p *Pipeline) blocked(key string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	until, ok := p.recent[key]
+	return ok && time.Now().Before(until)
 }
 
 // windowText 把窗口时长说成人话。
@@ -300,7 +315,8 @@ func (p *Pipeline) sendVideo(ctx *event.Context, e *event.MessageEvent, src stri
 	if err == nil || !isRemote(src) {
 		return err
 	}
-	log.Warnf("直传失败, 改成自己下回来再传: %v", err)
+	log.Warnf("直传失败[%s], 改成自己下回来再传: %v", detect.Name(got.Platform), err)
+	p.claim(directFailKey(got.Platform), directFailTTL)
 
 	file, _, derr := media.Download(got.Video.URL, got.Video.Headers, int64(cfg.MaxSizeMB)<<20)
 	if derr != nil {
@@ -344,9 +360,11 @@ func (p *Pipeline) videoPlan(got model.Media, cfg Config) (note string, src stri
 	}
 
 	// 直链能被裸拉(不带任何请求头)时, 把 URL 交给 QQ 自己去下: 省掉云手机上行最慢的两段路。
-	// 拉不走的(B站这类验 Referer 的)才自己下回来再传。
-	if media.PubliclyFetchable(got.Video.URL, probeTimeout) {
-		log.Infof("直链可直传, 交给 QQ 拉取 %s", got.Title)
+	//
+	// 但探测器看到的网和腾讯服务器看到的不是同一张 —— 实测出现过探测通过、QQ 十秒就报
+	// "富媒体文件上传超时"。所以这个平台一旦栽过, 一段时间内不再试直传: 白等一场之后还得再下一遍。
+	if !p.blocked(directFailKey(got.Platform)) && media.PubliclyFetchable(got.Video.URL, probeTimeout) {
+		log.Infof("直链可直传[%s], 交给 QQ 拉取 %s", detect.Name(got.Platform), got.Title)
 		return "", got.Video.URL
 	}
 
