@@ -31,6 +31,9 @@ const (
 // 连着甩五条链接时跟着刷五句提示, 和刷屏没区别。
 const skipNoticeGap = 30 * time.Second
 
+// probeTimeout 探直链、问体积这类小请求的预算; 它们只取 1 字节, 慢就是不值得等。
+const probeTimeout = 10 * time.Second
+
 // Config 是这一层读到的配置快照。
 type Config struct {
 	Enabled map[string]bool
@@ -247,9 +250,9 @@ func (p *Pipeline) claim(key string, ttl time.Duration) bool {
 
 // deliver 发卡片与视频, 卡片没发出去时返回错误 —— 那等于这次什么都没给到, 调用方要还额度。
 func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got model.Media, cfg Config) error {
-	note, videoPath := p.videoPlan(got, cfg)
-	if videoPath != "" {
-		defer os.Remove(videoPath)
+	note, src := p.videoPlan(got, cfg)
+	if src != "" && !isRemote(src) {
+		defer os.Remove(src)
 	}
 
 	cardMsg, err := ctx.MarkdownTemplate(templateCard, &templates.Args{
@@ -281,22 +284,49 @@ func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got model.
 		log.Warnf("发送卡片失败: %v", err)
 		return err
 	}
-	if videoPath == "" {
+	if src == "" {
 		return nil
 	}
-
-	video := ctx.Msg()
-	if e.MessageID != "" {
-		video.Quote(e.MessageID)
-	}
-	if err := video.Video(videoPath).Send(); err != nil {
+	if err := p.sendVideo(ctx, e, src, got, cfg); err != nil {
 		log.Warnf("发送视频失败: %v", err)
 	}
 	return nil
 }
 
+// sendVideo 发视频本体。来源是公网直链而平台自己拉不动时, 退回"自己下回来再传" ——
+// 直传省掉云手机上最慢的两段路, 但它依赖平台服务器真能拉到那条链, 光靠探测下不了结论。
+func (p *Pipeline) sendVideo(ctx *event.Context, e *event.MessageEvent, src string, got model.Media, cfg Config) error {
+	err := p.pushVideo(ctx, e, src)
+	if err == nil || !isRemote(src) {
+		return err
+	}
+	log.Warnf("直传失败, 改成自己下回来再传: %v", err)
+
+	file, _, derr := media.Download(got.Video.URL, got.Video.Headers, int64(cfg.MaxSizeMB)<<20)
+	if derr != nil {
+		return err
+	}
+	defer os.Remove(file)
+	return p.pushVideo(ctx, e, file)
+}
+
+func (p *Pipeline) pushVideo(ctx *event.Context, e *event.MessageEvent, src string) error {
+	chain := ctx.Msg()
+	if e.MessageID != "" {
+		chain.Quote(e.MessageID)
+	}
+	return chain.Video(src).Send()
+}
+
+// isRemote 公网直链; 框架见到 http(s) 就把 URL 交给平台, 自己不下。
+func isRemote(src string) bool {
+	return strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://")
+}
+
 // videoPlan 决定视频发不发本体: 超时长、超体积、下载失败都只发卡片, 并给一句说明。
-func (p *Pipeline) videoPlan(got model.Media, cfg Config) (note string, path string) {
+// videoPlan 决定视频发不发本体, 以及从哪儿发。
+// 超时长、超体积、下载失败都只发卡片, 并给一句说明。
+func (p *Pipeline) videoPlan(got model.Media, cfg Config) (note string, src string) {
 	if got.Video == nil || !cfg.SendVideo {
 		return note, ""
 	}
@@ -307,10 +337,17 @@ func (p *Pipeline) videoPlan(got model.Media, cfg Config) (note string, path str
 	}
 	size := got.Video.Size
 	if size == 0 {
-		size = media.ProbeSize(got.Video.URL, got.Video.Headers, 10*time.Second)
+		size = media.ProbeSize(got.Video.URL, got.Video.Headers, probeTimeout)
 	}
 	if size > limitBytes {
 		return fmt.Sprintf("视频 %s，超过 %d MB 上限，点标题去原页面看", sizeText(size), cfg.MaxSizeMB), ""
+	}
+
+	// 直链能被裸拉(不带任何请求头)时, 把 URL 交给 QQ 自己去下: 省掉云手机上行最慢的两段路。
+	// 拉不走的(B站这类验 Referer 的)才自己下回来再传。
+	if media.PubliclyFetchable(got.Video.URL, probeTimeout) {
+		log.Infof("直链可直传, 交给 QQ 拉取 %s", got.Title)
+		return "", got.Video.URL
 	}
 
 	file, written, err := media.Download(got.Video.URL, got.Video.Headers, limitBytes)

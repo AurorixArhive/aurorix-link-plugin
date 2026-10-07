@@ -72,6 +72,26 @@ func downloadBudget(limitBytes int64) time.Duration {
 	return min(max(budget, floor), ceiling)
 }
 
+// PubliclyFetchable 判断这条直链能不能被"不带任何请求头"的第三方拉走 —— 也就是平台服务器
+// 能不能自己去下。
+//
+// 实测: B站的 upos 无 Referer 直接 403(带上 Referer 才 206), 抖音/最右/米游社都不挑。
+// 能直传就把 URL 交给 QQ, 省掉云手机上"下载 + 上传"两条腿 —— 那是整条链路里最慢的一段。
+func PubliclyFetchable(rawURL string, timeout time.Duration) bool {
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		return false
+	}
+	// 只取 1 字节: 要的是"能不能拿到", 不是内容本身。
+	req.Header.Set("Range", "bytes=0-0")
+	resp, err := (&http.Client{Timeout: timeout}).Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode >= 200 && resp.StatusCode < 300
+}
+
 // ProbeSize 先问体积, 超限的就不下载了。
 // 站点对 HEAD 的回应不统一, 返回 0 表示不知道 —— 调用方照旧下载, 由下载环节兜底。
 func ProbeSize(rawURL string, headers map[string]string, timeout time.Duration) int64 {
