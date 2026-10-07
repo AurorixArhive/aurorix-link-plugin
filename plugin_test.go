@@ -32,14 +32,15 @@ func TestCardTemplateRenders(t *testing.T) {
 		"platform": "B站",
 		"title":    "标题",
 		"url":      "https://www.bilibili.com/video/BV1GJ411x7h7",
-		"meta":     para("索尼音乐中国 · 03:33"),
+		"author":   para("索尼音乐中国"),
+		"meta":     para("03:33 · 播放 1234.5万"),
 		"desc":     para("一段简介"),
 		"note":     []any{},
 	})
 	if err != nil {
 		t.Fatalf("卡片模板渲染失败: %v", err)
 	}
-	want := "# 🎬 B站\n\n[**标题**](https://www.bilibili.com/video/BV1GJ411x7h7)\n\n索尼音乐中国 · 03:33\n\n> 一段简介\n\n"
+	want := "# 🎬 B站\n\n[**标题**](https://www.bilibili.com/video/BV1GJ411x7h7) · 索尼音乐中国\n\n03:33 · 播放 1234.5万\n\n> 一段简介\n\n"
 	if content != want {
 		t.Fatalf("卡片排版变了:\n得到 %q\n期望 %q", content, want)
 	}
@@ -47,12 +48,14 @@ func TestCardTemplateRenders(t *testing.T) {
 
 // 没有简介时不能留一块空引用, 有提示时提示必须自成一段 ——
 // 它原先紧跟在引用块后面, 渲染出来会被并进那块引用里。
+// 作者为空时标题行也不该剩下一个孤零零的分隔点。
 func TestCardOmitsMissingParagraphs(t *testing.T) {
 	content, err := templates.FillFor(PluginID, "card", templates.Args{
 		"emoji":    "🎬",
 		"platform": "抖音",
 		"title":    "标题",
 		"url":      "https://v.douyin.com/x/",
+		"author":   []any{},
 		"meta":     []any{},
 		"desc":     []any{},
 		"note":     []any{map[string]any{"text": "视频 42.1 MB，超过 30 MB 上限"}},

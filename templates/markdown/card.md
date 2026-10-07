@@ -1,6 +1,6 @@
 # {{emoji}} {{platform}}
 
-[**{{title}}**]({{url}})
+[**{{title}}**]({{url}}){{#each author}} · {{text}}{{/each}}
 {{#each meta}}
 {{text}}
 {{/each}}{{#each desc}}

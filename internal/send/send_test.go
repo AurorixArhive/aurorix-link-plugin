@@ -69,17 +69,19 @@ func TestVideoPlanSkipsWhenVideoDisabled(t *testing.T) {
 	}
 }
 
-// 什么都不认识时返回空串: 那一段就不该出现在卡片上, 而不是拿一句废话占位。
+// 作者不在这一行(它跟着标题走), 其余什么都不认识时返回空串 ——
+// 那一段就不该出现在卡片上, 而不是拿一句废话占位。
 func TestMetaLine(t *testing.T) {
 	cases := []struct {
 		media model.Media
 		want  string
 	}{
 		{model.Media{}, ""},
-		{model.Media{Title: "标题"}, ""},
-		{model.Media{Author: "某某", Duration: 95, Stat: "播放 1.2万"}, "某某 · 01:35 · 播放 1.2万"},
-		{model.Media{Author: "小美", Images: []string{"a", "b", "c"}}, "小美 · 3 张图"},
-		{model.Media{Author: "小美", Images: []string{"a"}}, "小美"},
+		{model.Media{Title: "标题", Author: "某某"}, ""},
+		{model.Media{Author: "某某", Duration: 95, Stat: "播放 1.2万"}, "01:35 · 播放 1.2万"},
+		{model.Media{Author: "小美", Images: []string{"a", "b", "c"}}, "3 张图"},
+		{model.Media{Duration: 14400, Stat: "播放 1 亿"}, "4:00:00 · 播放 1 亿"},
+		{model.Media{Author: "小美", Images: []string{"a"}}, ""},
 	}
 	for _, c := range cases {
 		if got := metaLine(c.media); got != c.want {
@@ -191,20 +193,20 @@ func TestDirectFailBlocksPlatform(t *testing.T) {
 	}
 }
 
-// 空段落必须真的消失 —— 模板引擎靠空数组判断"这段不出现",
-// 塞个空串进去就会在卡片上留下一块空白引用。
-func TestParagraphSkipsEmpty(t *testing.T) {
+// 空文本必须真的消失 —— 模板引擎靠空数组判断"这段不出现",
+// 塞个空串进去就会在卡片上留下一块空白引用, 或者标题后面挂一个孤零零的" · "。
+func TestPresentSkipsEmpty(t *testing.T) {
 	for _, text := range []string{"", "   ", "\n\t"} {
-		if got := paragraph(text); len(got) != 0 {
-			t.Fatalf("空白文本应产出空段落, 得到 %#v", got)
+		if got := present(text); len(got) != 0 {
+			t.Fatalf("空白文本应产出空片段, 得到 %#v", got)
 		}
 	}
-	got := paragraph(" 一段简介 ")
+	got := present(" 索尼音乐中国 ")
 	if len(got) != 1 {
 		t.Fatalf("有内容应产出恰好一段, 得到 %#v", got)
 	}
-	if text, _ := got[0].(map[string]any)["text"].(string); text != "一段简介" {
-		t.Fatalf("段落内容没去掉首尾空白: %#v", got)
+	if text, _ := got[0].(map[string]any)["text"].(string); text != "索尼音乐中国" {
+		t.Fatalf("内容没去掉首尾空白: %#v", got)
 	}
 }
 

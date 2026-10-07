@@ -275,9 +275,10 @@ func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got model.
 		"platform": got.Platform,
 		"title":    got.Title,
 		"url":      got.PageURL,
-		"meta":     paragraph(metaLine(got)),
+		"author":   present(got.Author),
+		"meta":     present(metaLine(got)),
 		"desc":     descParagraph(got),
-		"note":     paragraph(note),
+		"note":     present(note),
 	})
 	if err != nil {
 		log.Warnf("渲染卡片失败: %v", err)
@@ -415,11 +416,10 @@ func emoji(got model.Media) string {
 	}
 }
 
+// metaLine 标题下面那行: 时长、播放、图集张数。
+// 作者不在这里 —— 它跟着标题走, 见 card.md。
 func metaLine(got model.Media) string {
-	parts := make([]string, 0, 4)
-	if got.Author != "" {
-		parts = append(parts, got.Author)
-	}
+	parts := make([]string, 0, 3)
 	if text := durationText(got.Duration); text != "" {
 		parts = append(parts, text)
 	}
@@ -432,10 +432,11 @@ func metaLine(got model.Media) string {
 	return strings.Join(parts, " · ")
 }
 
-// paragraph 把一个段落包成 {{#each}} 吃得下的形态。
-// 模板引擎没有条件语法, 空数组是它唯一能表达"这段不出现"的方式 ——
+// present 把一段可选文本包成 {{#each}} 吃得下的形态: 空数组就是"这段不出现"。
+// 模板引擎没有条件语法, 这是它唯一能表达有无的方式 ——
 // 换成塞占位文字, 卡片上就会多出一块空白引用或一句废话。
-func paragraph(text string) []any {
+// 整行段落和"标题 · 作者"这种行内后缀用的都是它。
+func present(text string) []any {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return []any{}
@@ -449,7 +450,7 @@ func descParagraph(got model.Media) []any {
 	if strings.TrimSpace(got.Desc) == strings.TrimSpace(got.Title) {
 		return []any{}
 	}
-	return paragraph(got.Desc)
+	return present(got.Desc)
 }
 
 func durationText(seconds int) string {
