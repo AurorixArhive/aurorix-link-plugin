@@ -24,7 +24,6 @@ var log = logx.New("video")
 
 const (
 	templateCard = "card"
-	templateFail = "fail"
 	templateNote = "note"
 )
 
@@ -92,10 +91,10 @@ func (p *Pipeline) Handle(ctx *event.Context, e *event.MessageEvent) {
 
 	got, err := p.parse(hit, cfg)
 	if err != nil {
-		// 没解析成功不该占掉这条链接的额度: 否则一次网络抖动就能让这条链接
-		// 在去重窗口里再也发不动, 而用户那边看到的只是"没反应"。
+		// 解析失败一律静默: 用户要的是结果, 不是"没解析出来"这句解释。
+		// 日志留着 —— 出问题时只有它能说话。
 		p.release("link:" + hit.URL)
-		p.fail(ctx, e, err)
+		log.Warnf("解析失败 %s: %v", hit.URL, err)
 		return
 	}
 	if err := p.deliver(ctx, e, got, cfg); err != nil {
@@ -146,11 +145,22 @@ func traceUnmatched(e *event.MessageEvent) {
 	}
 }
 
-// worthTracing 判断这条消息值不值得留痕: 卡片、转发、富媒体, 或者连正文都没有的空消息。
-// 有正文的纯文本是正常聊天, 不看。
+// 平台给的消息类型里, 只有"合并转发(聊天记录)"的正文才在 msg_elements 里;
+// 引用(103)的元素装的是被引用的那条消息, 是别人发的内容。
+const msgTypeRecord = 102
+
+// worthTracing 判断这条消息值不值得留痕。
+//
+// 只记"平台推了东西、我们却拿不到内容"的那几种: 卡片、合并转发, 以及连正文和附件都空的消息。
+// 引用别人的消息只是正常聊天 —— 每句回复都记一条, 日志里就什么都看不出来了。
 func worthTracing(e *event.MessageEvent) bool {
-	if e.Ark != nil || len(e.Elements) > 0 || e.MsgType != 0 {
+	if e.Ark != nil || e.MsgType == msgTypeRecord {
 		return true
+	}
+	for _, el := range structers.FlattenElements(e.Elements) {
+		if el.ArkData != nil {
+			return true
+		}
 	}
 	return e.Content == "" && len(e.Attachments) == 0
 }
@@ -281,7 +291,6 @@ func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got model.
 	}
 	if err := video.Video(videoPath).Send(); err != nil {
 		log.Warnf("发送视频失败: %v", err)
-		p.say(ctx, e, templateNote, &templates.Args{"reason": "视频没传上去，点标题去原页面看"})
 	}
 	return nil
 }
@@ -310,17 +319,13 @@ func (p *Pipeline) videoPlan(got model.Media, cfg Config) (note string, path str
 			return fmt.Sprintf("视频超过 %d MB 上限，点标题去原页面看", cfg.MaxSizeMB), ""
 		}
 		log.Warnf("下载视频失败: %v", err)
-		return "视频没下下来，点标题去原页面看", ""
+		return "", ""
 	}
 	log.Infof("已下载 %s (%s)", got.Title, sizeText(written))
 	return "", file
 }
 
-func (p *Pipeline) fail(ctx *event.Context, e *event.MessageEvent, err error) {
-	p.say(ctx, e, templateFail, &templates.Args{"reason": reason(err)})
-}
-
-// say 补一句话。失败必须让用户看得见 —— 只写日志的话, 用户那边就是"发了链接没反应"。
+// say 补一句话。只在"认出来了却决定不做"时用 —— 那种情况不说话, 用户分不清是坏了还是被限流。
 func (p *Pipeline) say(ctx *event.Context, e *event.MessageEvent, templateID string, args *templates.Args) {
 	msg, err := ctx.MarkdownTemplate(templateID, args)
 	if err != nil {
@@ -334,19 +339,6 @@ func (p *Pipeline) say(ctx *event.Context, e *event.MessageEvent, templateID str
 	if err := chain.Add(msg).Send(); err != nil {
 		log.Warnf("发送 %s 文案出错: %v", templateID, err)
 	}
-}
-
-// reason 只把能看懂的话给用户: 领域错误本身就是给他看的, 其余一律换成不透明文案,
-// 让用户对着 "context deadline exceeded" 发呆没有意义。
-func reason(err error) string {
-	if err == nil {
-		return "解析没成功，稍后再试"
-	}
-	text := err.Error()
-	if text == "" || strings.Contains(text, "http") || len([]rune(text)) > 60 {
-		return "解析没成功，稍后再试"
-	}
-	return text
 }
 
 func emoji(got model.Media) string {

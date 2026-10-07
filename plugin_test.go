@@ -43,23 +43,14 @@ func TestCardTemplateRenders(t *testing.T) {
 	}
 }
 
-func TestFailTemplateRenders(t *testing.T) {
-	content, err := templates.FillFor(PluginID, "fail", templates.Args{"reason": "视频超过 50 MB 上限"})
-	if err != nil {
-		t.Fatalf("失败模板渲染失败: %v", err)
-	}
-	if !strings.Contains(content, "视频超过 50 MB 上限") {
-		t.Fatalf("失败文案没带出原因:\n%s", content)
-	}
-}
-
-// 视频没传上去时要补一句话: 只写日志的话, 用户那边看到的就是"发了链接没反应"。
+// 被"认出来了却没做"时补的那句话, 渲染不出来就等于静默, 所以单盯一条。
+// 解析失败不再有文案 —— 那种情况一律静默, 只留日志。
 func TestNoteTemplateRenders(t *testing.T) {
-	content, err := templates.FillFor(PluginID, "note", templates.Args{"reason": "视频没传上去，点标题去原页面看"})
+	content, err := templates.FillFor(PluginID, "note", templates.Args{"reason": "刚处理过一条，稍等一下再发"})
 	if err != nil {
 		t.Fatalf("说明模板渲染失败: %v", err)
 	}
-	if !strings.Contains(content, "视频没传上去") {
+	if !strings.Contains(content, "刚处理过一条") {
 		t.Fatalf("说明文案没带出原因:\n%s", content)
 	}
 }
@@ -71,7 +62,11 @@ func TestDefaultsHaveEveryPlatform(t *testing.T) {
 			t.Fatalf("默认应开启 %s", platform)
 		}
 	}
-	if got.GroupCooldown != 10*time.Second || !got.SendVideo || got.MaxDuration != 600 || got.MaxSizeMB != 30 {
+	// 冷却与去重默认关闭: 同一个链接再发一次就再解析一次, 不做任何拦截。
+	if got.GroupCooldown != 0 || got.LinkTTL != 0 {
+		t.Fatalf("冷却与去重默认应关闭: %+v", got)
+	}
+	if !got.SendVideo || got.MaxDuration != 600 || got.MaxSizeMB != 30 {
 		t.Fatalf("默认值不对: %+v", got)
 	}
 }

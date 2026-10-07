@@ -13,11 +13,14 @@ import (
 )
 
 // defaults 是没配置时用的值。每一项都能在管理台改, 改完立刻生效。
+//
+// 冷却与去重默认都是 0(不限制): 同一个链接再发一次就再解析一次。
+// 它们的作用是防刷屏, 代价是"发了没反应" —— 小群里弊大于利, 所以默认关掉。
 var defaults = send.Config{
 	Enabled:       allPlatforms(true),
 	Cookies:       map[string]string{},
-	GroupCooldown: 10 * time.Second,
-	LinkTTL:       10 * time.Minute,
+	GroupCooldown: 0,
+	LinkTTL:       0,
 	Timeout:       30 * time.Second,
 	SendVideo:     true,
 	MaxDuration:   10 * 60,
@@ -164,16 +167,16 @@ func configFields() []plugin.ConfigField {
 		{
 			Key:         "group_cooldown_seconds",
 			Label:       "群内冷却（秒）",
-			Description: "同一个群/单聊两次解析之间的最小间隔，防止有人连着甩一堆链接把机器人刷爆。默认 10。",
+			Description: "同一个群/单聊两次解析之间的最小间隔，防止有人连着甩一堆链接把机器人刷爆。填 0 表示不限制，默认 0。",
 			Type:        "number",
-			Placeholder: "10",
+			Placeholder: "0",
 		},
 		{
 			Key:         "link_ttl_minutes",
 			Label:       "同一链接去重（分钟）",
-			Description: "同一条链接在这段时间内只解析一次，别人再发同样的链接不会重复刷屏。默认 10。",
+			Description: "同一条链接在这段时间内只解析一次，别人再发同样的链接不会重复刷屏。填 0 表示每次都重新解析，默认 0。",
 			Type:        "number",
-			Placeholder: "10",
+			Placeholder: "0",
 		},
 		{
 			Key:         "max_duration_minutes",

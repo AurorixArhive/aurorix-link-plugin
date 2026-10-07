@@ -1,7 +1,6 @@
 package send
 
 import (
-	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -46,21 +45,6 @@ func TestClaimExpiresAndCleans(t *testing.T) {
 	p.mu.Unlock()
 	if stale {
 		t.Fatal("表太大时应顺手清掉过期项")
-	}
-}
-
-func TestReasonKeepsReadableText(t *testing.T) {
-	if got := reason(errors.New("抖音没给作品详情(可能已删除或仅自己可见)")); got == "" || strings.Contains(got, "稍后再试") {
-		t.Fatalf("能看懂的话应原样透出, 得到 %q", got)
-	}
-	for _, err := range []error{
-		errors.New("request failed: Get \"https://api.bilibili.com/x\": dial tcp: timeout"),
-		errors.New(strings.Repeat("很长的错误", 40)),
-		nil,
-	} {
-		if got := reason(err); got != "解析没成功，稍后再试" {
-			t.Fatalf("应换成不透明文案, 得到 %q", got)
-		}
 	}
 }
 
@@ -166,11 +150,21 @@ func TestWorthTracingOnlyOnCardOrForward(t *testing.T) {
 		t.Fatal("带图的普通消息不该留痕")
 	}
 
+	// 引用别人的消息回复是正常聊天: 元素里装的是被引用那句话, 不是平台推了怪东西。
+	quoted := &event.MessageEvent{
+		MsgType:  103,
+		Content:  " <@40F71B126D2CF0836DC52171CAC57842> ？",
+		Elements: []structers.MsgElement{{MessageType: 103, Content: "上一条消息"}},
+	}
+	if worthTracing(quoted) {
+		t.Fatal("引用消息不该留痕")
+	}
+
 	cases := map[string]*event.MessageEvent{
-		"卡片":  {MsgType: 3, Ark: &structers.ArkData{ArkType: "miniapp"}},
-		"转发":  {MsgType: 102, Elements: []structers.MsgElement{{Content: "被转发的内容"}}},
-		"富媒体": {MsgType: 7},
-		"空消息": {},
+		"卡片":    {MsgType: 3, Ark: &structers.ArkData{ArkType: "miniapp"}},
+		"合并转发":  {MsgType: 102, Elements: []structers.MsgElement{{Content: "被转发的内容"}}},
+		"转发的卡片": {MsgType: 103, Elements: []structers.MsgElement{{ArkData: &structers.ArkData{ArkType: "miniapp"}}}},
+		"空消息":   {},
 	}
 	for name, ev := range cases {
 		if !worthTracing(ev) {
