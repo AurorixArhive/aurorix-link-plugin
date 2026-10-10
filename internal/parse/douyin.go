@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"video-plugin/internal/model"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/model"
 )
 
 var douyinIDPattern = regexp.MustCompile(`/(?:video|note)/(\d+)`)

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"video-plugin/internal/model"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/model"
 )
 
 const (

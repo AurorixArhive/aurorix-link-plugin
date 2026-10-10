@@ -8,7 +8,7 @@ import (
 
 	"github.com/KasumiYuku/Aurorix/lib/requests"
 
-	"video-plugin/internal/parse"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/parse"
 )
 
 type HTTP struct {

@@ -8,8 +8,8 @@ import (
 	"errors"
 	"net/http"
 
-	"video-plugin/internal/detect"
-	"video-plugin/internal/model"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/detect"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/model"
 )
 
 var ErrUnsupported = errors.New("这个平台的链接还没支持")

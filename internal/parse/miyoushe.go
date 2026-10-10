@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	"video-plugin/internal/model"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/model"
 )
 
 var miyousheIDPattern = regexp.MustCompile(`/(?:article|post)/(\d+)`)

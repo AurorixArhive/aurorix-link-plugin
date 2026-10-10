@@ -10,9 +10,9 @@ import (
 	"github.com/KasumiYuku/Aurorix/lib/plugin"
 	"github.com/KasumiYuku/Aurorix/lib/requests"
 
-	"video-plugin/internal/parse"
-	"video-plugin/internal/send"
-	"video-plugin/internal/transport"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/parse"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/send"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/transport"
 )
 
 const PluginID = "video"

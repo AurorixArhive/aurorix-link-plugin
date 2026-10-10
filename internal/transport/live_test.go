@@ -7,9 +7,9 @@ import (
 
 	"github.com/KasumiYuku/Aurorix/lib/requests"
 
-	"video-plugin/internal/detect"
-	"video-plugin/internal/model"
-	"video-plugin/internal/parse"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/detect"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/model"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/parse"
 )
 
 // 真实网络用例: 默认跳过, VIDEO_LIVE=1 时才跑。

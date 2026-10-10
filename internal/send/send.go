@@ -14,10 +14,10 @@ import (
 	"github.com/KasumiYuku/Aurorix/lib/structers"
 	"github.com/KasumiYuku/Aurorix/lib/templates"
 
-	"video-plugin/internal/detect"
-	"video-plugin/internal/media"
-	"video-plugin/internal/model"
-	"video-plugin/internal/parse"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/detect"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/media"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/model"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/parse"
 )
 
 var log = logx.New("video")

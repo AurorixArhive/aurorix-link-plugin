@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"video-plugin/internal/model"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/model"
 )
 
 type xhs struct {

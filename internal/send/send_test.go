@@ -9,7 +9,7 @@ import (
 	"github.com/KasumiYuku/Aurorix/lib/message"
 	"github.com/KasumiYuku/Aurorix/lib/structers"
 
-	"video-plugin/internal/model"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/model"
 )
 
 func TestClaimBlocksWithinTTL(t *testing.T) {

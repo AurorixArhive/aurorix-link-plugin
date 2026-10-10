@@ -8,8 +8,8 @@ import (
 
 	"github.com/KasumiYuku/Aurorix/lib/plugin"
 
-	"video-plugin/internal/detect"
-	"video-plugin/internal/send"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/detect"
+	"github.com/AurorixArhive/aurorix-video-plugin/internal/send"
 )
 
 // defaults 是没配置时用的值。每一项都能在管理台改, 改完立刻生效。
