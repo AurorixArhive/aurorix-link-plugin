@@ -118,7 +118,7 @@ VIDEO_LIVE=1 go test ./internal/transport/ -v   # 真实网络用例, 验"现在
 本插件是标准 Go module，发新版靠 git tag。使用方一行升级：
 
 ```bash
-aurx update github.com/AurorixArhive/aurorix-video-plugin
+aurx update aurorix-video-plugin    # 模块名可以只写一段
 ```
 
 `aurx update` = `go get -u` + `go mod tidy` + 编译校验；跑完 `aurx run` 重启实例即可。
