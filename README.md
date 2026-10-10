@@ -1,60 +1,82 @@
-# video-plugin
+# 视频解析
 
-给 [Aurorix](https://github.com/KasumiYuku/Aurorix) 用的视频解析插件:群里或私聊直接发分享链接,机器人自己认出来、解析、把视频/图集/文案发回来。**不需要任何指令。**
+![Go](https://img.shields.io/badge/Go-1.26-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+> Aurorix 框架的视频解析插件
+>
+> 群里或私聊直接发分享链接，机器人自己认出来、解析、把视频 / 图集 / 文案发回来。**不需要任何指令。**
+
+## 快速开始
+
+本插件运行在 [Aurorix](https://github.com/KasumiYuku/Aurorix) 实例中，请先按框架 README 完成安装：
+
+```bash
+git clone https://github.com/KasumiYuku/Aurorix.git
+cd Aurorix
+make install          # 安装脚手架 aurx（Windows 用 go install ./tools/aurx）
+cd ..
+aurx new mybot --framework Aurorix
+```
+
+然后在实例中导入本插件：
+
+```bash
+cd mybot
+aurx add github.com/AurorixArhive/aurorix-video-plugin
+```
+
+本地开发时把本目录放进实例的 `plugins/`，再 `aurx add <实例module>/plugins/video-plugin`。
+
+把机器人的 `appid` / `secret` 填入 `config.json` 后启动：
+
+```bash
+aurx run
+```
 
 ## 支持哪些链接
 
 | 平台 | 认得的链接 | 发回来的东西 |
 |---|---|---|
-| 抖音 | `v.douyin.com/xxx`、`douyin.com/video/xxx`、`iesdouyin.com/share/video/xxx` | 无水印视频,或图集 + 文案 |
+| 抖音 | `v.douyin.com/xxx`、`douyin.com/video/xxx`、`iesdouyin.com/share/video/xxx` | 无水印视频，或图集 + 文案 |
 | B站 | `bilibili.com/video/BV...`、`b23.tv/xxx`、`av123`、直接发裸 BV 号 | 视频 + 标题 / UP主 / 时长 / 播放量 |
 | 小红书 | `xhslink.com/xxx`、`xiaohongshu.com/explore/xxx` | 笔记图集或视频 + 正文（需配 Cookie） |
 | 微博 | `m.weibo.cn/detail/xxx`、`weibo.com/...` | 视频或图集 + 正文（需配 Cookie） |
 | 米游社 | `miyoushe.com/ys/article/xxx` | 帖子图集或视频 + 正文 |
 | 最右 | `share.xiaochuankeji.cn/hybrid/share/post?pid=xxx` | 视频或图集 + 标题 |
 
-从 App 里点"分享到 QQ"发出来的卡片也认 —— 链接藏在卡片里,插件会把它取出来。
-
-## 安装
-
-```bash
-cd 你的机器人实例
-aurx add github.com/KasumiYuku/video-plugin
-aurx run
-```
-
-本地开发时把本目录放进实例的 `plugins/` 再 `aurx add <实例module>/plugins/video-plugin`。
+从 App 里点"分享到 QQ"发出来的卡片也认 —— 链接藏在卡片里，插件会把它取出来。
 
 ## 配置
 
-管理台 → 插件 → 视频解析,改完立刻生效,不用重启。
+管理台 → 插件 → 视频解析，改完立刻生效，不用重启。
 
 | 配置项 | 默认 | 作用 |
 |---|---|---|
-| 群内冷却(秒) | 0(不限制) | 同一个群/单聊两次解析之间的最小间隔;防刷屏用,填 0 表示每次都处理 |
-| 同一链接去重(分钟) | 0(不限制) | 同一条链接在这段时间内只解析一次;填 0 表示再发一次就再解析一次 |
-| 视频时长上限(分钟) | 10 | 超过就只发卡片,不发视频本体 |
-| 视频体积上限(MB) | 30 | 同上;QQ 对视频的软限制就是 30MB,超过会被降级成文件(没有播放器),再大也没有意义 |
-| 发送视频本体 | 开 | 关掉后只发卡片和标题,省流量 |
-| 关闭的平台 | 空 | 填平台名,逗号分隔,例如 `小红书,微博`;留空表示六个平台全开 |
-| 小红书 / 微博 Cookie | 空 | 这两个平台要登录态才拿得到数据,留空则不解析它们 |
+| 群内冷却（秒） | 0（不限制） | 同一个群 / 单聊两次解析之间的最小间隔；防刷屏用，填 0 表示每次都处理 |
+| 同一链接去重（分钟） | 0（不限制） | 同一条链接在这段时间内只解析一次；填 0 表示再发一次就再解析一次 |
+| 视频时长上限（分钟） | 10 | 超过就只发卡片，不发视频本体 |
+| 视频体积上限（MB） | 30 | 同上；QQ 对视频的软限制就是 30MB，超过会被降级成文件（没有播放器），再大也没有意义 |
+| 发送视频本体 | 开 | 关掉后只发卡片和标题，省流量 |
+| 关闭的平台 | 空 | 填平台名，逗号分隔，例如 `小红书,微博`；留空表示六个平台全开 |
+| 小红书 / 微博 Cookie | 空 | 这两个平台要登录态才拿得到数据，留空则不解析它们 |
 
 ## 行为细节
 
-- 群里任何人发链接就解析,**不带前缀、不用 @ 机器人**;@ 机器人发链接也认
-- 回复引用原消息,方便对上是谁发的那条链接
+- 群里任何人发链接就解析，**不带前缀、不用 @ 机器人**；@ 机器人发链接也认
+- 回复引用原消息，方便对上是谁发的那条链接
 - 认不出链接的消息**完全静默** —— 聊什么都能触发的机器人只会被踢
-- 解析失败**完全静默**(只写日志);用户要的是结果,不是"没解析出来"这句解释
-- 只有"认出来了却决定不做"(开了冷却或去重)才会回一句说明
-- 视频优先走"直传": 直链能被裸拉(不带请求头)时把 URL 交给 QQ 自己去下, 省掉云手机上行最慢的两段路; 平台自己拉不动时(B站这类验 Referer 的)才下回来再传, 直传失败也会自动退回下载
-- 转发的卡片与合并转发也能认:内容在 `msg_elements` 里,插件会递归展开后一起找链接
+- 解析失败**完全静默**（只写日志）；用户要的是结果，不是"没解析出来"这句解释
+- 只有"认出来了却决定不做"（开了冷却或去重）才会回一句说明
+- 视频优先走"直传"： 直链能被裸拉（不带请求头）时把 URL 交给 QQ 自己去下， 省掉云手机上行最慢的两段路； 平台自己拉不动时（B站这类验 Referer 的）才下回来再传， 直传失败也会自动退回下载
+- 转发的卡片与合并转发也能认：内容在 `msg_elements` 里，插件会递归展开后一起找链接
 
 ## 已知限制
 
-- 微博和小红书必须填 Cookie,否则接口会拿游客页或验证页挡回来
-- 小红书的分享链接里带 `xsec_token`,token 过期或笔记私密时会解析不到,这时重新复制一次分享链接即可
-- B站取的是 `platform=html5` 的渐进式 MP4:单文件、免合流、体积小,代价是清晰度不高
-- 卡片消息的解析依赖 Aurorix 透出 `ark_data`(见框架 `lib/structers`);框架版本过旧时只能认粘贴出来的文本链接
+- 微博和小红书必须填 Cookie，否则接口会拿游客页或验证页挡回来
+- 小红书的分享链接里带 `xsec_token`，token 过期或笔记私密时会解析不到，这时重新复制一次分享链接即可
+- B站取的是 `platform=html5` 的渐进式 MP4：单文件、免合流、体积小，代价是清晰度不高
+- 卡片消息的解析依赖 Aurorix 透出 `ark_data`（见框架 `lib/structers`）；框架版本过旧时只能认粘贴出来的文本链接
 - 直播间、付费内容、需要登录才能看的作品不在支持范围内
 
 ## 结构
@@ -73,15 +95,26 @@ video-plugin/
     └── transport/               把框架的 HTTP 客户端接到解析内核上
 ```
 
-解析内核(`detect` / `model` / `parse`)不 import 框架,换框架、写测试都不用动它。加一个平台 = `internal/parse` 里加一个文件 + 在 `parse.New` 的注册表里加一行。
+解析内核（`detect` / `model` / `parse`）不 import 框架，换框架、写测试都不用动它。加一个平台 = `internal/parse` 里加一个文件 + 在 `parse.New` 的注册表里加一行。
 
-## 测试
+## 开发
+
+源码依赖框架，按 `go.mod` 里的相对引用检出：
+
+```text
+Projects/
+└── Okamikko/            # go.work 工作区
+    ├── Aurorix/         # github.com/KasumiYuku/Aurorix
+    └── video-plugin/    # 本仓
+```
 
 ```bash
-go test ./...          # 全部离线用例: 链接识别、各平台样本解析、防刷、配置生效
+go test ./...                                   # 全部离线用例: 链接识别、各平台样本解析、防刷、配置生效
 VIDEO_LIVE=1 go test ./internal/transport/ -v   # 真实网络用例, 验"现在到底通不通"
 ```
 
 ## 许可
 
-MIT
+代码采用 [MIT](LICENSE) 协议。
+
+本插件为非官方插件，与各平台无关；解析到的内容版权归原作者所有。
