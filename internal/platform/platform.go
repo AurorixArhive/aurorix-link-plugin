@@ -1,0 +1,32 @@
+// Package platform 汇总所有平台解析器; 加一个平台 = 加一个子包 + 这里加一行导入。
+package platform
+
+import (
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/bilibili"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/buff"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/coolapk"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/douban"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/doubao"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/douyin"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/ds"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/duitang"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/fiveeplay"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/heybox"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/hupu"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/illu"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/kuaishou"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/kugou"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/kuwo"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/linuxdo"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/lofter"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/miyoushe"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/netease"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/qsmusic"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/rednote"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/taptap"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/tieba"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/weibo"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/wmpvp"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/zhihu"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/zlb"
+)

@@ -1,87 +1,194 @@
-// Package parse 是解析内核: 输入一个分享链接, 输出统一的 model.Media。
-//
-// 这里不 import 框架 —— 内核只依赖下面这个 Client 接口, 换框架、写测试都不用动它。
 package parse
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
-	"net/http"
+	"net/url"
+	"regexp"
+	"sort"
+	"strconv"
+	"strings"
 
-	"github.com/AurorixArhive/aurorix-video-plugin/internal/detect"
-	"github.com/AurorixArhive/aurorix-video-plugin/internal/model"
+	"github.com/AurorixArhive/aurorix-link-plugin/internal/model"
 )
 
-var ErrUnsupported = errors.New("这个平台的链接还没支持")
-
-// Client 解析需要的全部外部能力: 发 GET 请求、预置 cookie。
-type Client interface {
-	Get(rawURL string, headers map[string]string) (*Response, error)
-	SetCookie(rawURL, name, value string) error
-}
-
-// Response 内核看到的响应: 状态码、实际地址(跟随跳转之后)、响应头、正文。
-type Response struct {
-	StatusCode int
-	URL        string
-	Header     http.Header
-	Body       []byte
-}
-
-func (r *Response) Text() string { return string(r.Body) }
-
-func (r *Response) JSON(v any) error {
-	if len(r.Body) == 0 {
-		return errors.New("响应为空")
-	}
-	return json.Unmarshal(r.Body, v)
-}
-
-// Creds 按平台取当前配置里的 Cookie; 没配置返回空串。
-// 做成函数而不是快照: 管理台改了 Cookie, 下一次解析就该用新的。
-type Creds func(platform string) string
-
-// Parser 一个平台一个实现, 签名统一。
 type Parser interface {
-	Parse(rawURL string) (model.Media, error)
+	Platform() model.Platform
+	Routes() []Route
 }
 
-// env 解析器共享的外部资源。内嵌 Client, 各平台照旧写 env.Get / env.SetCookie;
-// 凭据按平台现取, 管理台改完下一次解析就生效。
-type env struct {
-	Client
-	creds Creds
+type CookieAware interface {
+	SetCookie(value string)
 }
 
-func (e *env) cookie(platform string) string {
-	if e.creds == nil {
-		return ""
+type Handler func(ctx context.Context, m *Match) (*model.Result, error)
+
+type Route struct {
+	Keyword string
+	Pattern *regexp.Regexp
+	Params  map[string]ParamRule
+	Handle  Handler
+}
+
+type ParamRule struct {
+	Optional bool
+	Default  string
+	Equals   string
+	OneOf    []string
+	AsInt    bool
+}
+
+type Match struct {
+	URL    string
+	Params map[string]string
+}
+
+func (m *Match) Get(key string) string { return m.Params[key] }
+
+func (m *Match) Int(key string) int64 {
+	value, _ := strconv.ParseInt(m.Params[key], 10, 64)
+	return value
+}
+
+type Factory func() Parser
+
+var registry []Factory
+
+func Register(f Factory) { registry = append(registry, f) }
+
+func All() []Parser {
+	out := make([]Parser, 0, len(registry))
+	for _, f := range registry {
+		out = append(out, f())
 	}
-	return e.creds(platform)
+	return out
 }
 
-// Set 平台名 → 解析器。
-type Set struct {
-	parsers map[string]Parser
+type Hit struct {
+	Parser Parser
+	Route  Route
+	Match  *Match
 }
 
-func New(client Client, creds Creds) *Set {
-	e := &env{Client: client, creds: creds}
-	return &Set{parsers: map[string]Parser{
-		detect.Bilibili: newBilibili(e),
-		detect.Douyin:   newDouyin(e),
-		detect.Xhs:      newXhs(e),
-		detect.Weibo:    newWeibo(e),
-		detect.Miyoushe: newMiyoushe(e),
-		detect.Zuiyou:   newZuiyou(e),
-	}}
+type Engine struct {
+	routes []boundRoute
 }
 
-// Do 按平台解析。
-func (s *Set) Do(platform, rawURL string) (model.Media, error) {
-	p, ok := s.parsers[platform]
-	if !ok {
-		return model.Media{}, ErrUnsupported
+type boundRoute struct {
+	parser Parser
+	route  Route
+}
+
+func NewEngine() *Engine {
+	engine := &Engine{}
+	for _, parser := range All() {
+		for _, route := range parser.Routes() {
+			engine.routes = append(engine.routes, boundRoute{parser: parser, route: route})
+		}
 	}
-	return p.Parse(rawURL)
+	sort.SliceStable(engine.routes, func(i, j int) bool {
+		return len(engine.routes[i].route.Keyword) > len(engine.routes[j].route.Keyword)
+	})
+	return engine
+}
+
+func (e *Engine) Find(raw string) (*Hit, error) {
+	for _, br := range e.routes {
+		if !strings.Contains(raw, br.route.Keyword) {
+			continue
+		}
+		match, ok := br.route.locate(raw)
+		if !ok {
+			continue
+		}
+		return &Hit{Parser: br.parser, Route: br.route, Match: match}, nil
+	}
+	return nil, ErrNoMatch
+}
+
+var ErrNoMatch = errors.New("没有匹配的平台")
+
+func (r Route) locate(raw string) (*Match, bool) {
+	groups := r.Pattern.FindStringSubmatch(raw)
+	if groups == nil {
+		return nil, false
+	}
+	matched := groups[0]
+	parsed, err := url.Parse(matched)
+	if err != nil {
+		return nil, false
+	}
+
+	params := map[string]string{}
+	for i, name := range r.Pattern.SubexpNames() {
+		if i > 0 && i < len(groups) && name != "" && groups[i] != "" {
+			params[name] = groups[i]
+		}
+	}
+	for key, values := range parsed.Query() {
+		if len(values) > 0 && params[key] == "" {
+			params[key] = values[0]
+		}
+	}
+	for key, values := range fragmentQuery(parsed) {
+		if len(values) > 0 && params[key] == "" {
+			params[key] = values[0]
+		}
+	}
+
+	for name, rule := range r.Params {
+		value, has := params[name]
+		if !has && rule.Default != "" {
+			value, has = rule.Default, true
+			params[name] = value
+		}
+		if !has {
+			if rule.Optional {
+				continue
+			}
+			return nil, false
+		}
+		if rule.Equals != "" && value != rule.Equals {
+			return nil, false
+		}
+		if len(rule.OneOf) > 0 && !contains(rule.OneOf, value) {
+			return nil, false
+		}
+		if rule.AsInt {
+			if _, err := strconv.Atoi(value); err != nil {
+				return nil, false
+			}
+		}
+	}
+	return &Match{URL: matched, Params: params}, true
+}
+
+func fragmentQuery(u *url.URL) url.Values {
+	if u.Fragment == "" {
+		return nil
+	}
+	i := strings.IndexByte(u.Fragment, '?')
+	if i < 0 {
+		return nil
+	}
+	values, err := url.ParseQuery(u.Fragment[i+1:])
+	if err != nil {
+		return nil
+	}
+	return values
+}
+
+func contains(list []string, value string) bool {
+	for _, item := range list {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
+func Compile(pattern string) *regexp.Regexp { return regexp.MustCompile(pattern) }
+
+func Domain(keyword string) *regexp.Regexp {
+	return Compile(`https?://(?:[A-Za-z0-9-]+\.)*` + regexp.QuoteMeta(keyword) + `[^\s]*`)
 }
