@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -25,7 +26,9 @@ var log = logx.New("link")
 const (
 	templateCard = "card"
 	templateNote = "note"
-	voiceSeconds = 3 * 60
+	voiceSeconds = 5 * 60
+	// maxAudioBytes 是先下回来再传的上限: 超过就退回直传, 不把内存吃满。
+	maxAudioBytes = 64 << 20
 )
 
 const skipNoticeGap = 30 * time.Second
@@ -167,8 +170,8 @@ func (p *Pipeline) deliver(ctx *event.Context, e *event.MessageEvent, got *model
 		card.Quote(e.MessageID)
 	}
 	card.Add(cardMsg)
-	for _, image := range got.Images() {
-		card.Image(image, "图片")
+	for _, image := range cardImages(got) {
+		card.Image(httpsImage(image), "图片")
 	}
 	if err := card.Send(); err != nil {
 		log.Warnf("发送卡片失败: %v", err)
@@ -197,14 +200,36 @@ func (p *Pipeline) sendAudios(ctx *event.Context, e *event.MessageEvent, got *mo
 }
 
 func (p *Pipeline) sendAudio(ctx *event.Context, e *event.MessageEvent, item model.Audio, got *model.Result) error {
+	if item.Duration > voiceSeconds {
+		return p.sendAudioFile(ctx, e, item, got)
+	}
 	chain := ctx.Msg()
 	if e.MessageID != "" {
 		chain.Quote(e.MessageID)
 	}
-	if item.Duration > voiceSeconds {
-		return chain.File(item.URL, audioName(item, got)).Send()
+	if err := chain.Voice(item.URL).Send(); err != nil {
+		// QQ 的语音只收 silk/mp3/wav, 别的格式会失败 —— 退回发文件
+		log.Warnf("发语音失败, 退回发文件: %v", err)
+		return p.sendAudioFile(ctx, e, item, got)
 	}
-	return chain.Voice(item.URL).Send()
+	return nil
+}
+
+// sendAudioFile 先下回来再按字节上传: 走 URL 直传时 QQ 会无视 file_name,
+// 拿整条 URL 当文件名(query 也一起塞进去), 群里收到的就成了 "....m4a_guid=...&vkey=..."。
+func (p *Pipeline) sendAudioFile(ctx *event.Context, e *event.MessageEvent, item model.Audio, got *model.Result) error {
+	chain := ctx.Msg()
+	if e.MessageID != "" {
+		chain.Quote(e.MessageID)
+	}
+	name := audioName(item, got)
+	file, _, err := media.Download(item.URL, item.Headers, maxAudioBytes)
+	if err != nil {
+		log.Warnf("下载音频失败, 退回直传: %v", err)
+		return chain.File(item.URL, name).Send()
+	}
+	defer os.Remove(file)
+	return chain.File("file://"+file, name).Send()
 }
 
 func (p *Pipeline) sendVideo(ctx *event.Context, e *event.MessageEvent, src string, got *model.Result, cfg Config) error {
@@ -250,7 +275,7 @@ func (p *Pipeline) videoPlan(got *model.Result, cfg Config) (string, string) {
 	if size > limitBytes {
 		return fmt.Sprintf("视频 %s，超过 %d MB 上限，点标题去原页面看", sizeText(size), cfg.MaxSizeMB), ""
 	}
-	if !p.blocked(directFailKey(got.Platform.Name)) && media.PubliclyFetchable(video.URL, probeTimeout) {
+	if !p.blocked(directFailKey(got.Platform.Name)) && directUploadOK(got.Platform.Name, video.URL) && media.PubliclyFetchable(video.URL, probeTimeout) {
 		log.Infof("直链可直传[%s %s], 交给 QQ 拉取 %s", got.Platform.DisplayName, sizeLabel(size), got.Title)
 		return "", video.URL
 	}
@@ -325,6 +350,37 @@ func (p *Pipeline) claim(key string, ttl time.Duration) bool {
 }
 
 func directFailKey(platform string) string { return "nofetch:" + platform }
+
+// httpsImage 把 http 直链抬成 https: 框架对公网 URL 是"直通"给 QQ 的, 不走图床,
+// 而 QQ 只把 https 的地址当图渲染, 拿到 http 就原样显示成一条链接。
+func httpsImage(rawURL string) string {
+	if rest, ok := strings.CutPrefix(rawURL, "http://"); ok {
+		return "https://" + rest
+	}
+	return rawURL
+}
+
+// cardImages 卡片带的图: 图集就是那几张; 视频帖本身没有图, 把封面挂上去 ——
+// 不挂的话标题下面空着一块, 看着就像解析坏了。
+func cardImages(got *model.Result) []string {
+	if images := got.Images(); len(images) > 0 {
+		return images
+	}
+	if cover := got.Cover(); cover != "" {
+		return []string{cover}
+	}
+	return nil
+}
+
+// directUploadOK 决定这条直链敢不敢交给 QQ 去拉: 它拉得动与否我们事后看不见, 只能事前保守。
+// 只认 https —— 实测把 http 直链递过去, 接口回成功、群里却没有视频(小红书和快手的 CDN 都发 http)。
+// 快手另外拉黑: 它那条链也栽过, 而自己下回来传虽然慢, 至少一定发得出去。
+func directUploadOK(platform, rawURL string) bool {
+	if platform == "kuaishou" {
+		return false
+	}
+	return strings.HasPrefix(rawURL, "https://")
+}
 
 func isRemote(src string) bool {
 	return strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://")
@@ -401,7 +457,19 @@ func audioName(item model.Audio, got *model.Result) string {
 		name = "audio"
 	}
 	name = strings.NewReplacer("/", "_", "\\", "_", ":", "_", "*", "_", "?", "_", "\"", "_", "<", "_", ">", "_", "|", "_").Replace(name)
-	return name + ".mp3"
+	return name + audioExt(item.URL)
+}
+
+// audioExt 后缀按直链的真实格式来: 一律写 .mp3 会让 m4a/flac 被播放器认错。
+func audioExt(rawURL string) string {
+	if i := strings.IndexByte(rawURL, '?'); i >= 0 {
+		rawURL = rawURL[:i]
+	}
+	switch ext := strings.ToLower(path.Ext(rawURL)); ext {
+	case ".mp3", ".m4a", ".flac", ".wav", ".aac", ".ogg", ".ape":
+		return ext
+	}
+	return ".mp3"
 }
 
 func durationText(seconds int) string {
