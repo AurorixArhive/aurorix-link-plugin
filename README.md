@@ -1,11 +1,11 @@
-# 视频解析
+# 链接解析
 
 ![Go](https://img.shields.io/badge/Go-1.26-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-> Aurorix 框架的视频解析插件
+> Aurorix 框架的链接解析插件
 >
-> 群里或私聊直接发分享链接，机器人自己认出来、解析、把视频 / 图集 / 文案发回来。**不需要任何指令。**
+> 群里或私聊直接发作品链接，机器人自己认出来、解析、把音频 / 视频 / 图片 / 文案发回来。**不需要任何指令。**
 
 ## 快速开始
 
@@ -23,79 +23,81 @@ aurx new mybot --framework Aurorix
 
 ```bash
 cd mybot
-aurx add github.com/AurorixArhive/aurorix-video-plugin
+aurx add github.com/AurorixArhive/aurorix-link-plugin
 ```
 
-本地开发时把本目录放进实例的 `plugins/`，再 `aurx add <实例module>/plugins/video-plugin`。
+本地开发时把本目录放进实例的 `plugins/`，再 `aurx add <实例module>/plugins/link-plugin`。
 
 把机器人的 `appid` / `secret` 填入 `config.json` 后启动：
 
-```bash
-aurx run
-```
+| 平台 | 链接样子 |
+|---|---|
+| 抖音 | `v.douyin.com/xxx`、`douyin.com/video/xxx` |
+| 快手 | `v.kuaishou.com/xxx` |
+| 豆瓣 | `douban.com/group/topic/...` |
+| 堆糖 | `duitang.com/blog?id=...`、`duitang.com/atlas?id=...` |
+| Lofter | `xxx.lofter.com/post/...` |
+| 网易云音乐 | `music.163.com/#/song?id=...` |
+| 酷狗音乐 | `t1.kugou.com/xxx`、`kugou.com/share/...` |
+| 酷我音乐 | `kuwo.cn/play_detail/...` |
+| 汽水音乐 | `qishui.douyin.com/s/...` |
 
-## 支持哪些链接
+待移植：B站、小红书、微博、知乎、贴吧、米游社、虎扑、小黑盒、QQ音乐等。
 
-| 平台 | 认得的链接 | 发回来的东西 |
-|---|---|---|
-| 抖音 | `v.douyin.com/xxx`、`douyin.com/video/xxx`、`iesdouyin.com/share/video/xxx` | 无水印视频，或图集 + 文案 |
-| B站 | `bilibili.com/video/BV...`、`b23.tv/xxx`、`av123`、直接发裸 BV 号 | 视频 + 标题 / UP主 / 时长 / 播放量 |
-| 小红书 | `xhslink.com/xxx`、`xiaohongshu.com/explore/xxx` | 笔记图集或视频 + 正文（需配 Cookie） |
-| 微博 | `m.weibo.cn/detail/xxx`、`weibo.com/...` | 视频或图集 + 正文（需配 Cookie） |
-| 米游社 | `miyoushe.com/ys/article/xxx` | 帖子图集或视频 + 正文 |
-| 最右 | `share.xiaochuankeji.cn/hybrid/share/post?pid=xxx` | 视频或图集 + 标题 |
+需要登录态才看得到内容的平台，在管理台填对应的 Cookie。
+| 小黑盒 | `xiaoheihe.cn/...` |
+| 网易云音乐 | `music.163.com/#/song?id=...` |
+| QQ音乐 | `y.qq.com/n/ryqq/songDetail/...` |
+| 酷狗音乐 | `t1.kugou.com/xxx`、`kugou.com/share/...` |
+| 酷我音乐 | `kuwo.cn/play_detail/...` |
+| 汽水音乐 | `qishui.douyin.com/s/...` |
 
-从 App 里点"分享到 QQ"发出来的卡片也认 —— 链接藏在卡片里，插件会把它取出来。
+需要登录态才看得到内容的平台，在管理台填对应的 Cookie。
+
+## 平台
+
+B站、抖音、快手、小红书、微博、知乎、百度贴吧、豆瓣、堆糖、LOFTER、米游社、虎扑、小黑盒、酷安、TapTap、5EPlay、完美世界电竞、大神、DS、ZLB、壁吧专楼吧、LINUX DO、BUFF、ILLU、豆包、网易云音乐、酷狗音乐、酷我音乐、汽水音乐
+
+小红书、微博、知乎的部分内容要登录态才看得到，在管理台填对应的 Cookie 即可。
+
+## 发送方式
+
+- **音频**：3 分钟以内发语音，超过发文件。
+- **视频**：优先把直链交给 QQ 自己去拉；拉不动就下到本机再上传，并记住这个平台一段时间内不再试直链。
+- **图片**：按图发。
+- **文案**：跟着卡片一起发；没有媒体时就是一条文本。
 
 ## 配置
 
-管理台 → 插件 → 视频解析，改完立刻生效，不用重启。
+管理台 → 插件 → 链接解析，改完立刻生效，不用重启。
 
 | 配置项 | 默认 | 作用 |
 |---|---|---|
-| 群内冷却（秒） | 0（不限制） | 同一个群 / 单聊两次解析之间的最小间隔；防刷屏用，填 0 表示每次都处理 |
-| 同一链接去重（分钟） | 0（不限制） | 同一条链接在这段时间内只解析一次；填 0 表示再发一次就再解析一次 |
-| 视频时长上限（分钟） | 10 | 超过就只发卡片，不发视频本体 |
-| 视频体积上限（MB） | 30 | 同上；QQ 对视频的软限制就是 30MB，超过会被降级成文件（没有播放器），再大也没有意义 |
-| 发送视频本体 | 开 | 关掉后只发卡片和标题，省流量 |
-| 关闭的平台 | 空 | 填平台名，逗号分隔，例如 `小红书,微博`；留空表示六个平台全开 |
-| 小红书 / 微博 Cookie | 空 | 这两个平台要登录态才拿得到数据，留空则不解析它们 |
-
-## 行为细节
-
-- 群里任何人发链接就解析，**不带前缀、不用 @ 机器人**；@ 机器人发链接也认
-- 回复引用原消息，方便对上是谁发的那条链接
-- 认不出链接的消息**完全静默** —— 聊什么都能触发的机器人只会被踢
-- 解析失败**完全静默**（只写日志）；用户要的是结果，不是"没解析出来"这句解释
-- 只有"认出来了却决定不做"（开了冷却或去重）才会回一句说明
-- 视频优先走"直传"： 直链能被裸拉（不带请求头）时把 URL 交给 QQ 自己去下， 省掉云手机上行最慢的两段路； 平台自己拉不动时（B站这类验 Referer 的）才下回来再传， 直传失败也会自动退回下载
-- 转发的卡片与合并转发也能认：内容在 `msg_elements` 里，插件会递归展开后一起找链接
-
-## 已知限制
-
-- 微博和小红书必须填 Cookie，否则接口会拿游客页或验证页挡回来
-- 小红书的分享链接里带 `xsec_token`，token 过期或笔记私密时会解析不到，这时重新复制一次分享链接即可
-- B站取的是 `platform=html5` 的渐进式 MP4：单文件、免合流、体积小，代价是清晰度不高
-- 卡片消息的解析依赖 Aurorix 透出 `ark_data`（见框架 `lib/structers`）；框架版本过旧时只能认粘贴出来的文本链接
-- 直播间、付费内容、需要登录才能看的作品不在支持范围内
+| 关闭的平台 | 空 | 逗号分隔，中英文名都认。留空表示全开 |
+| 群内冷却（秒） | 0 | 同一个群两次解析之间的最小间隔，0 表示不限制 |
+| 同一链接去重（分钟） | 0 | 同一条链接这段时间内只解析一次，0 表示每次都解析 |
+| 视频时长上限（分钟） | 10 | 超了只发卡片 |
+| 视频体积上限（MB） | 30 | 超了只发卡片 |
+| 发送视频本体 | 开 | 关掉就只发卡片和图片 |
+| 各平台 Cookie | 空 | 需要登录态的平台才有这一项 |
 
 ## 结构
 
 ```
-video-plugin/
-├── plugin.go                    装配: 请求客户端 → 解析内核 → 发送管线 → 事件订阅
-├── config.go                    管理台配置项与生效逻辑
-├── templates/markdown/          所有用户可见文案
+link-plugin/
+├── plugin.go                装配: 解析引擎 → 发送管线 → 事件订阅 → 注册插件
+├── config.go                配置项与运行期快照
+├── templates/markdown/      用户可见文案(卡片 / 提示)
 └── internal/
-    ├── detect/                  从一段文字或卡片里认出平台与链接
-    ├── model/                   解析产物(视频 / 图集 / 文案)
-    ├── parse/                   六个平台各一个文件, 共用一套 HTML 取值工具
-    ├── media/                   视频落盘与体积探测
-    ├── send/                    防刷、降级与发送
-    └── transport/               把框架的 HTTP 客户端接到解析内核上
+    ├── platform/<名字>/     每个平台一个包, 加平台 = 加一个包 + platform.go 一行导入
+    ├── parse/               URL 匹配、路由注册表、短链/卡片/裸 BV 提取
+    ├── model/               统一模型: 文本 / 图片 / 视频 / 音频 / 实况照片
+    ├── netx/                HTTP 客户端与 JSON 解码
+    ├── htmlx/               HTML 取文本与配图、数字与时间格式化
+    ├── send/                投递与防刷
+    ├── media/               视频下载与直链探测
+    └── guard/               每平台限速、熔断、并发合并
 ```
-
-解析内核（`detect` / `model` / `parse`）不 import 框架，换框架、写测试都不用动它。加一个平台 = `internal/parse` 里加一个文件 + 在 `parse.New` 的注册表里加一行。
 
 ## 开发
 
@@ -105,20 +107,23 @@ video-plugin/
 Projects/
 └── Okamikko/            # go.work 工作区
     ├── Aurorix/         # github.com/KasumiYuku/Aurorix
-    └── video-plugin/    # 本仓
+    └── link-plugin/     # 本仓
 ```
 
 ```bash
-go test ./...                                   # 全部离线用例: 链接识别、各平台样本解析、防刷、配置生效
-VIDEO_LIVE=1 go test ./internal/transport/ -v   # 真实网络用例, 验"现在到底通不通"
+go vet ./...
+go test -short ./...        # 离线
+go test -run TestLive -v ./ # 联网用例: 每个平台拉一次真实链接
 ```
+
+`TestLivePlatforms` 里的链接是这套解析器的冒烟样本：上游改字段、加风控、换域名，它是最先响的那一个。
 
 ## 更新
 
 本插件是标准 Go module，发新版靠 git tag。使用方一行升级：
 
 ```bash
-aurx update aurorix-video-plugin    # 模块名可以只写一段
+aurx update aurorix-link-plugin    # 模块名可以只写一段
 ```
 
 `aurx update` = `go get -u` + `go mod tidy` + 编译校验；跑完 `aurx run` 重启实例即可。
@@ -127,4 +132,4 @@ aurx update aurorix-video-plugin    # 模块名可以只写一段
 
 代码采用 [MIT](LICENSE) 协议。
 
-本插件为非官方插件，与各平台无关；解析到的内容版权归原作者所有。
+本插件为非官方插件，与各平台无关；内容版权归各权利人所有。
