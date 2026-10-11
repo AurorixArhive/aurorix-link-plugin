@@ -1,10 +1,12 @@
+// Package rednote 解析小红书: 短链用 GET 跟到底, 再从页面的 __INITIAL_STATE__ 里按特征找笔记对象。
 package rednote
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"net/url"
-	"regexp"
-	"strconv"
+	"sort"
 	"strings"
 
 	"github.com/AurorixArhive/aurorix-link-plugin/internal/htmlx"
@@ -13,14 +15,16 @@ import (
 	"github.com/AurorixArhive/aurorix-link-plugin/internal/parse"
 )
 
+// mobileUA 笔记页只在移动端身份下给完整数据; xhslink 短链用桌面 UA 会被踢到 404。
+const mobileUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"
+
 var headers = map[string]string{
-	"User-Agent":       "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1 Edg/132.0.0.0",
-	"Referer":          "https://www.xiaohongshu.com/",
-	"Origin":           "https://www.xiaohongshu.com",
-	"X-Requested-With": "XMLHttpRequest",
+	"User-Agent": mobileUA,
+	"Referer":    "https://www.xiaohongshu.com/",
 }
 
-var initialStateRe = regexp.MustCompile(`(?s)window\.__INITIAL_STATE__=(.*?)</script>`)
+// noteBase 笔记页的域名; 测试里会指到假服务器上, 所以留成变量。
+var noteBase = "https://www.xiaohongshu.com"
 
 var platform = model.Platform{Name: "rednote", DisplayName: "小红书"}
 
@@ -56,71 +60,6 @@ func (p *Parser) Routes() []parse.Route {
 	}
 }
 
-type streamURL struct {
-	MasterURL string `json:"masterUrl"`
-}
-
-type stream struct {
-	H264 []streamURL `json:"h264"`
-	H265 []streamURL `json:"h265"`
-	H266 []streamURL `json:"h266"`
-	AV1  []streamURL `json:"av1"`
-}
-
-func (s stream) url() string {
-	for _, list := range [][]streamURL{s.H264, s.H265, s.H266, s.AV1} {
-		if len(list) > 0 {
-			return list[0].MasterURL
-		}
-	}
-	return ""
-}
-
-type noteImage struct {
-	FileID    string `json:"fileId"`
-	LivePhoto bool   `json:"livePhoto"`
-	Stream    stream `json:"stream"`
-}
-
-type noteVideo struct {
-	Capa struct {
-		Duration float64 `json:"duration"`
-	} `json:"capa"`
-	Consumer struct {
-		OriginVideoKey string `json:"originVideoKey"`
-	} `json:"consumer"`
-}
-
-type noteDetail struct {
-	Title string `json:"title"`
-	Desc  string `json:"desc"`
-	User  struct {
-		NickName string `json:"nickName"`
-		Avatar   string `json:"avatar"`
-		UserID   string `json:"userId"`
-	} `json:"user"`
-	LastUpdateTime int64 `json:"lastUpdateTime"`
-	InteractInfo   struct {
-		LikedCount     string `json:"likedCount"`
-		CollectedCount string `json:"collectedCount"`
-		CommentCount   string `json:"commentCount"`
-		ShareCount     string `json:"shareCount"`
-	} `json:"interactInfo"`
-	Cover struct {
-		FileID string `json:"fileId"`
-	} `json:"cover"`
-	ImageList []noteImage `json:"imageList"`
-	Video     *noteVideo  `json:"video"`
-}
-
-type initialState struct {
-	NoteData struct {
-		Data struct {
-			NoteData noteDetail `json:"noteData"`
-		} `json:"data"`
-	} `json:"noteData"`
-}
-
 func (p *Parser) requestHeaders() map[string]string {
 	if p.cookie == "" {
 		return headers
@@ -133,181 +72,334 @@ func (p *Parser) requestHeaders() map[string]string {
 	return merged
 }
 
+// shortLink 短链必须用 GET 跟: 跳过去那一页就是笔记页, 顺手把它当正文用掉。
 func (p *Parser) shortLink(ctx context.Context, m *parse.Match) (*model.Result, error) {
 	target := m.URL
 	if !strings.HasPrefix(target, "http") {
 		target = "https://" + target
 	}
-	final, err := p.client.FinalURL(target, p.requestHeaders())
-	if err != nil {
-		return nil, err
-	}
-	if final == target {
-		return nil, errNoRedirect
-	}
-	for _, route := range p.Routes() {
-		if route.Keyword == "xhslink.cn" || route.Keyword == "xhslink.com" {
-			continue
-		}
-		if match := matchRoute(route, final); match != nil {
-			return route.Handle(ctx, match)
-		}
-	}
-	return nil, errNoRoute
+	return p.page(ctx, target)
 }
 
+// note 不另编地址, 就用分享里那条链接的规范形式去请求 —— 改名前的做法。
 func (p *Parser) note(ctx context.Context, m *parse.Match) (*model.Result, error) {
 	noteID := m.Get("note_id")
-	token := m.Get("xsec_token")
-	url := "https://www.xiaohongshu.com/discovery/item/" + noteID + "?xsec_token=" + token + "&xsec_source=pc_share"
+	if noteID == "" {
+		return nil, errNoData
+	}
+	target := noteBase + "/explore/" + noteID
+	if token := m.Get("xsec_token"); token != "" {
+		target += "?xsec_token=" + url.QueryEscape(token) + "&xsec_source=pc_share"
+	}
+	return p.page(ctx, target)
+}
 
-	page, err := p.client.Get(url, p.requestHeaders())
+func (p *Parser) page(ctx context.Context, target string) (*model.Result, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	body, final, err := p.client.GetFinal(target, p.requestHeaders())
 	if err != nil {
 		return nil, err
 	}
-	found := initialStateRe.FindSubmatch(page)
-	if found == nil {
-		return nil, errNoState
-	}
-	raw := strings.ReplaceAll(string(found[1]), "undefined", "null")
-
-	var state initialState
-	if err := netx.Decode([]byte(raw), &state); err != nil {
+	note, err := noteOf(string(body))
+	if err != nil {
 		return nil, err
 	}
-	detail := state.NoteData.Data.NoteData
-	if detail.User.UserID == "" && detail.Title == "" && detail.Video == nil && len(detail.ImageList) == 0 {
-		return nil, errNoData
-	}
-
-	content := make([]model.Content, 0, len(detail.ImageList)+2)
-	if text := htmlx.Compact(detail.Desc); text != "" {
-		content = append(content, model.Text{Value: text})
-	}
-	content = append(content, detail.medias()...)
-
-	return &model.Result{
-		Platform: platform,
-		URL:      url,
-		Title:    detail.Title,
-		Author: model.Author{
-			Name:   detail.User.NickName,
-			ID:     detail.User.UserID,
-			Avatar: detail.User.Avatar,
-		},
-		Stats: model.Stats{
-			Like:    detail.InteractInfo.LikedCount,
-			Comment: detail.InteractInfo.CommentCount,
-			Share:   detail.InteractInfo.ShareCount,
-			Collect: detail.InteractInfo.CollectedCount,
-		},
-		Timestamp: detail.LastUpdateTime / 1000,
-		Content:   content,
-	}, nil
+	return media(note, final), nil
 }
 
-func (d noteDetail) medias() []model.Content {
-	out := make([]model.Content, 0, len(d.ImageList)+1)
-	if d.Video != nil {
-		out = append(out, model.Video{
-			URL:      "https://sns-video-bd.xhscdn.com/" + d.Video.Consumer.OriginVideoKey,
-			Cover:    imageURL(d.Cover.FileID),
-			Duration: d.Video.Capa.Duration,
-			Headers:  headers,
-		})
-		return out
+// jsonAfter 从页面里抓 "marker = {...}" 那段 JSON: 括号配对才截得全, 正则给的多半是残段。
+func jsonAfter(page, marker string) ([]byte, bool) {
+	at := strings.Index(page, marker)
+	if at < 0 {
+		return nil, false
 	}
-	for _, img := range d.ImageList {
-		if img.LivePhoto {
-			out = append(out, model.LivePhoto{
-				Image:   imageURL(img.FileID),
-				Stream:  img.Stream.url(),
-				Headers: headers,
-			})
+	start := strings.IndexByte(page[at+len(marker):], '{')
+	if start < 0 {
+		return nil, false
+	}
+	start += at + len(marker)
+
+	depth := 0
+	inString := false
+	escaped := false
+	for i := start; i < len(page); i++ {
+		c := page[i]
+		if inString {
+			switch {
+			case escaped:
+				escaped = false
+			case c == '\\':
+				escaped = true
+			case c == '"':
+				inString = false
+			}
 			continue
 		}
-		if url := imageURL(img.FileID); url != "" {
-			out = append(out, model.Image{URL: url})
+		switch c {
+		case '"':
+			inString = true
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+			if depth == 0 {
+				return []byte(page[start : i+1]), true
+			}
 		}
 	}
-	return out
+	return nil, false
 }
 
-func imageURL(fileID string) string {
-	if fileID == "" {
-		return ""
+// findMap 递归找第一个含 required 全部键、且含 anyOf 至少一个键的对象: 站点每版埋的深度都不同。
+func findMap(node any, required, anyOf []string) map[string]any {
+	switch v := node.(type) {
+	case map[string]any:
+		if hasAll(v, required) && hasAny(v, anyOf) {
+			return v
+		}
+		keys := make([]string, 0, len(v))
+		for key := range v {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			if found := findMap(v[key], required, anyOf); found != nil {
+				return found
+			}
+		}
+	case []any:
+		for _, child := range v {
+			if found := findMap(child, required, anyOf); found != nil {
+				return found
+			}
+		}
 	}
-	return "https://ci.xiaohongshu.com/" + fileID + "?imageView2/2/w/1080/format/jpg"
+	return nil
 }
 
-func matchRoute(route parse.Route, raw string) *parse.Match {
-	groups := route.Pattern.FindStringSubmatch(raw)
-	if groups == nil {
-		return nil
-	}
-	params := map[string]string{}
-	for i, name := range route.Pattern.SubexpNames() {
-		if i > 0 && i < len(groups) && name != "" && groups[i] != "" {
-			params[name] = groups[i]
+func hasAll(node map[string]any, keys []string) bool {
+	for _, key := range keys {
+		if _, ok := node[key]; !ok {
+			return false
 		}
 	}
-	if parsed, err := url.Parse(groups[0]); err == nil {
-		for key, values := range parsed.Query() {
-			if len(values) > 0 && params[key] == "" {
-				params[key] = values[0]
-			}
-		}
-		if i := strings.IndexByte(parsed.Fragment, '?'); i >= 0 {
-			if values, err := url.ParseQuery(parsed.Fragment[i+1:]); err == nil {
-				for key, list := range values {
-					if len(list) > 0 && params[key] == "" {
-						params[key] = list[0]
-					}
-				}
-			}
-		}
-	}
-	for name, rule := range route.Params {
-		value, has := params[name]
-		if !has && rule.Default != "" {
-			value, has = rule.Default, true
-			params[name] = value
-		}
-		if !has {
-			if rule.Optional {
-				continue
-			}
-			return nil
-		}
-		if rule.Equals != "" && value != rule.Equals {
-			return nil
-		}
-		if len(rule.OneOf) > 0 && !contains(rule.OneOf, value) {
-			return nil
-		}
-		if rule.AsInt {
-			if _, err := strconv.Atoi(value); err != nil {
-				return nil
-			}
-		}
-	}
-	return &parse.Match{URL: groups[0], Params: params}
+	return true
 }
 
-func contains(list []string, value string) bool {
-	for _, item := range list {
-		if item == value {
+func hasAny(node map[string]any, keys []string) bool {
+	for _, key := range keys {
+		if _, ok := node[key]; ok {
 			return true
 		}
 	}
 	return false
 }
 
+func noteOf(page string) (map[string]any, error) {
+	raw, ok := jsonAfter(page, "window.__INITIAL_STATE__")
+	if !ok {
+		return nil, errNoState
+	}
+	// 页面里写的是 JS 的 undefined, 不是合法 JSON
+	raw = bytes.ReplaceAll(raw, []byte("undefined"), []byte("null"))
+	var root any
+	if err := json.Unmarshal(raw, &root); err != nil {
+		return nil, errNoState
+	}
+	note := findMap(root, []string{"noteId"}, []string{"imageList", "video", "desc"})
+	if note == nil {
+		return nil, errNoData
+	}
+	return note, nil
+}
+
+func media(note map[string]any, pageURL string) *model.Result {
+	noteID := str(note["noteId"])
+	title := firstLine(nonEmpty(str(note["title"]), str(note["desc"])))
+	if title == "" {
+		title = "小红书笔记"
+	}
+	user := dict(note["user"])
+	stats := dict(note["interactInfo"])
+
+	content := make([]model.Content, 0, 4)
+	if desc := htmlx.Compact(str(note["desc"])); desc != "" {
+		content = append(content, model.Text{Value: desc})
+	}
+	if link := videoURL(note); link != "" {
+		content = append(content, model.Video{URL: link, Cover: firstImage(note), Headers: headers})
+	} else {
+		for _, link := range imageURLs(note) {
+			content = append(content, model.Image{URL: link})
+		}
+	}
+
+	return &model.Result{
+		Platform: platform,
+		URL:      nonEmpty(noteBase+"/explore/"+noteID, pageURL),
+		Title:    title,
+		Author: model.Author{
+			Name:   firstString(user, "nickname", "nickName"),
+			Avatar: firstHTTP(user["avatar"]),
+		},
+		Stats: model.Stats{
+			Like:    str(stats["likedCount"]),
+			Collect: str(stats["collectedCount"]),
+			Comment: str(stats["commentCount"]),
+			Share:   str(stats["shareCount"]),
+		},
+		Timestamp: numberOf(note["lastUpdateTime"]) / 1000,
+		Content:   content,
+	}
+}
+
+// videoURL 按 h264 → h265 → av1 取: h264 兼容性最好, 别的有些客户端放不了。
+func videoURL(note map[string]any) string {
+	stream := dict(dict(dict(note["video"])["media"])["stream"])
+	if stream == nil {
+		return ""
+	}
+	for _, codec := range []string{"h264", "h265", "av1"} {
+		if link := firstHTTP(stream[codec]); link != "" {
+			return link
+		}
+	}
+	return ""
+}
+
+// imageURLs 图集的图: 字段名各版本不一, 按值找最稳。
+func imageURLs(note map[string]any) []string {
+	items := list(note["imageList"])
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		entry := dict(item)
+		if link := firstHTTP(entry["urlDefault"], entry["urlPre"], entry["url"]); link != "" {
+			out = append(out, link)
+		}
+	}
+	return out
+}
+
+func firstImage(note map[string]any) string {
+	if links := imageURLs(note); len(links) > 0 {
+		return links[0]
+	}
+	return ""
+}
+
+// firstHTTP 递归找第一个 http(s) 地址: 各版本字段名不一, 按值找最稳。
+func firstHTTP(nodes ...any) string {
+	for _, node := range nodes {
+		switch v := node.(type) {
+		case string:
+			if strings.HasPrefix(v, "http") {
+				return v
+			}
+		case []any:
+			for _, child := range v {
+				if found := firstHTTP(child); found != "" {
+					return found
+				}
+			}
+		case map[string]any:
+			if urls := list(v["url_list"]); urls != nil {
+				if found := firstHTTP(urls); found != "" {
+					return found
+				}
+			}
+			for _, child := range v {
+				if found := firstHTTP(child); found != "" {
+					return found
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// firstString 在嵌套结构里深度优先找第一个命中的字符串。
+func firstString(node any, keys ...string) string {
+	switch v := node.(type) {
+	case map[string]any:
+		for _, key := range keys {
+			if s, ok := v[key].(string); ok && s != "" {
+				return s
+			}
+		}
+		for _, key := range keys {
+			if found := firstString(v[key], keys...); found != "" {
+				return found
+			}
+		}
+		for _, child := range v {
+			if found := firstString(child, keys...); found != "" {
+				return found
+			}
+		}
+	case []any:
+		for _, child := range v {
+			if found := firstString(child, keys...); found != "" {
+				return found
+			}
+		}
+	}
+	return ""
+}
+
+func dict(v any) map[string]any {
+	m, _ := v.(map[string]any)
+	return m
+}
+
+func list(v any) []any {
+	l, _ := v.([]any)
+	return l
+}
+
+func str(v any) string {
+	s, _ := v.(string)
+	return s
+}
+
+func numberOf(v any) int64 {
+	switch n := v.(type) {
+	case float64:
+		return int64(n)
+	case int64:
+		return n
+	case int:
+		return int64(n)
+	}
+	return 0
+}
+
+func nonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// firstLine 简介动不动上千字, 塞进标题会把卡片撑爆。
+func firstLine(text string) string {
+	line := strings.TrimSpace(text)
+	if at := strings.IndexAny(line, "\r\n"); at >= 0 {
+		line = strings.TrimSpace(line[:at])
+	}
+	runes := []rune(line)
+	if len(runes) > 120 {
+		return string(runes[:120]) + "…"
+	}
+	return line
+}
+
 var (
-	errNoState    = errorString("小红书页面里没有 __INITIAL_STATE__")
-	errNoData     = errorString("小红书笔记数据为空, 可能链接失效或需要 Cookie")
-	errNoRedirect = errorString("小红书短链没有跳转到笔记页")
-	errNoRoute    = errorString("小红书短链没有解析出可用地址")
+	errNoState = errorString("小红书页面里没有 __INITIAL_STATE__")
+	errNoData  = errorString("小红书笔记数据为空, 可能链接失效或需要 Cookie")
 )
 
 type errorString string

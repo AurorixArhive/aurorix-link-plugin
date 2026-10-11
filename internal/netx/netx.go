@@ -122,6 +122,7 @@ func DecodeJSONP(raw []byte, out any) error {
 	return Decode([]byte(text), out)
 }
 
+// FinalURL 只问一句"这条短链跳到哪儿": 用 HEAD, 站点不吐正文也就白读不了。
 func (c *Client) FinalURL(rawURL string, headers map[string]string) (string, error) {
 	req, err := http.NewRequest(http.MethodHead, rawURL, nil)
 	if err != nil {
@@ -130,9 +131,7 @@ func (c *Client) FinalURL(rawURL string, headers map[string]string) (string, err
 	for k, v := range c.merge(headers) {
 		req.Header.Set(k, v)
 	}
-
-	client := &http.Client{Timeout: 20 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := finalClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -140,3 +139,31 @@ func (c *Client) FinalURL(rawURL string, headers map[string]string) (string, err
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1))
 	return resp.Request.URL.String(), nil
 }
+
+// GetFinal 用 GET 跟到底, 一次拿到正文和最后一跳的地址。
+// 小红书的 xhslink 对 HEAD 只回一张 200 的空壳, 拿 FinalURL 去问永远等于"没跳转"。
+func (c *Client) GetFinal(rawURL string, headers map[string]string) ([]byte, string, error) {
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	for k, v := range c.merge(headers) {
+		req.Header.Set(k, v)
+	}
+	resp, err := finalClient.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxFinalBytes))
+	if err != nil {
+		return nil, "", err
+	}
+	return body, resp.Request.URL.String(), nil
+}
+
+// finalClient 这条自己跟重定向: 框架那条会把整份正文读进内存, 而分享页动辄几百 KB。
+var finalClient = &http.Client{Timeout: 25 * time.Second}
+
+// maxFinalBytes 分享页正文的上限: __INITIAL_STATE__ 就在头几十 KB 里。
+const maxFinalBytes = 4 << 20
