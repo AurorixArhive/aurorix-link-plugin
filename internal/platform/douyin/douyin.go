@@ -2,7 +2,6 @@ package douyin
 
 import (
 	"context"
-	"net/url"
 	"strings"
 
 	"github.com/AurorixArhive/aurorix-link-plugin/internal/htmlx"
@@ -16,10 +15,7 @@ var headers = map[string]string{
 	"Referer":    "https://www.douyin.com/",
 }
 
-const (
-	detailAPI = "https://www.douyin.com/aweme/v1/web/aweme/detail/"
-	playAPI   = "https://aweme.snssdk.com/aweme/v1/play/"
-)
+const detailAPI = "https://www.douyin.com/aweme/v1/web/aweme/detail/"
 
 var platform = model.Platform{Name: "douyin", DisplayName: "抖音"}
 
@@ -71,19 +67,16 @@ type addr struct {
 	URLList []string `json:"url_list"`
 }
 
+// url 直接给真链: url_list 里放的就是 CDN 地址。
+// 不要再拼 aweme.snssdk.com/aweme/v1/play/?video_id=... —— 那是 302 跳转端点, 我们探测时
+// Go 会跟着跳到 CDN 所以看不出问题, QQ 去拉却只落个空, 群里就变成"有卡片没视频"。
 func (a addr) url() string {
-	base := playAPI + "?video_id=" + a.URI
-	if len(a.URLList) == 0 {
-		return base
-	}
-	parsed, err := url.Parse(a.URLList[len(a.URLList)-1])
-	if err != nil {
-		return base
-	}
-	if fileID := parsed.Query().Get("file_id"); fileID != "" {
-		return base + "&file_id=" + fileID
-	}
-	return base
+	return replacePlaywm(firstURL(a.URLList))
+}
+
+// replacePlaywm 分享页给的是带水印的地址, 换成 play 就是原片。
+func replacePlaywm(raw string) string {
+	return strings.Replace(raw, "playwm", "play", 1)
 }
 
 type urlList struct {
@@ -242,21 +235,21 @@ func (a aweme) content() []model.Content {
 	if len(a.Images) > 0 {
 		for _, item := range a.Images {
 			if item.ClipType == nil || *item.ClipType == 2 {
-				if url := last(item.URLList); url != "" {
+				if url := firstURL(item.URLList); url != "" {
 					out = append(out, model.Image{URL: url})
 				}
 			} else if item.Video != nil {
 				out = append(out, model.LivePhoto{
-					Image:   last(item.Video.Cover.URLList),
+					Image:   firstURL(item.Video.Cover.URLList),
 					Stream:  item.Video.PlayAddr.url(),
 					Headers: headers,
 				})
 			}
 		}
 	} else if a.Video != nil {
-		cover := last(a.Video.Cover.URLList)
+		cover := firstURL(a.Video.Cover.URLList)
 		if a.Video.CoverOriginalScale != nil {
-			cover = last(a.Video.CoverOriginalScale.URLList)
+			cover = firstURL(a.Video.CoverOriginalScale.URLList)
 		}
 		out = append(out, model.Video{
 			URL:      a.Video.PlayAddr.url(),
@@ -268,11 +261,13 @@ func (a aweme) content() []model.Content {
 	return out
 }
 
-func last(list []string) string {
-	if len(list) == 0 {
-		return ""
+func firstURL(list []string) string {
+	for _, raw := range list {
+		if strings.HasPrefix(raw, "http") {
+			return raw
+		}
 	}
-	return list[len(list)-1]
+	return ""
 }
 
 var errNoRoute = errorString("抖音短链没有解析出可用地址")
