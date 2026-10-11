@@ -28,37 +28,42 @@ aurx add github.com/AurorixArhive/aurorix-link-plugin
 
 本地开发时把本目录放进实例的 `plugins/`，再 `aurx add <实例module>/plugins/link-plugin`。
 
-把机器人的 `appid` / `secret` 填入 `config.json` 后启动：
-
-| 平台 | 链接样子 |
-|---|---|
-| 抖音 | `v.douyin.com/xxx`、`douyin.com/video/xxx` |
-| 快手 | `v.kuaishou.com/xxx` |
-| 豆瓣 | `douban.com/group/topic/...` |
-| 堆糖 | `duitang.com/blog?id=...`、`duitang.com/atlas?id=...` |
-| Lofter | `xxx.lofter.com/post/...` |
-| 网易云音乐 | `music.163.com/#/song?id=...` |
-| 酷狗音乐 | `t1.kugou.com/xxx`、`kugou.com/share/...` |
-| 酷我音乐 | `kuwo.cn/play_detail/...` |
-| 汽水音乐 | `qishui.douyin.com/s/...` |
-
-待移植：B站、小红书、微博、知乎、贴吧、米游社、虎扑、小黑盒、QQ音乐等。
-
-需要登录态才看得到内容的平台，在管理台填对应的 Cookie。
-| 小黑盒 | `xiaoheihe.cn/...` |
-| 网易云音乐 | `music.163.com/#/song?id=...` |
-| QQ音乐 | `y.qq.com/n/ryqq/songDetail/...` |
-| 酷狗音乐 | `t1.kugou.com/xxx`、`kugou.com/share/...` |
-| 酷我音乐 | `kuwo.cn/play_detail/...` |
-| 汽水音乐 | `qishui.douyin.com/s/...` |
-
-需要登录态才看得到内容的平台，在管理台填对应的 Cookie。
+把机器人的 `appid` / `secret` 填入 `config.json` 后启动，群里直接发链接就行：
 
 ## 平台
 
-B站、抖音、快手、小红书、微博、知乎、百度贴吧、豆瓣、堆糖、LOFTER、米游社、虎扑、小黑盒、酷安、TapTap、5EPlay、完美世界电竞、大神、DS、ZLB、壁吧专楼吧、LINUX DO、BUFF、ILLU、豆包、网易云音乐、酷狗音乐、酷我音乐、汽水音乐
+| 平台 | 链接样子 |
+|---|---|
+| B站 | `bilibili.com/video/BV...`、`b23.tv/xxx`、裸 BV 号 |
+| 抖音 | `v.douyin.com/xxx`、`douyin.com/video/xxx` |
+| 快手 | `v.kuaishou.com/xxx`、`v.m.chenzhongtech.com/fw/photo/xxx` |
+| 小红书 | `xhslink.com/xxx`、`xiaohongshu.com/explore/xxx` |
+| 微博 | `weibo.com/xxx`、`m.weibo.cn/detail/xxx`、`video.weibo.com/show?fid=xxx` |
+| 知乎 | `zhihu.com/question/xxx/answer/xxx`、`zhuanlan.zhihu.com/p/xxx` |
+| 百度贴吧 | `tieba.baidu.com/p/xxx` |
+| 米游社 | `miyoushe.com/xxx`、`act.miyoushe.com/ys/ugc_community/mx...` |
+| 虎扑 | `bbs.hupu.com/xxx`、`m.hupu.com/bbs-share/xxx` |
+| 小黑盒 | `xiaoheihe.cn/bbs/post_share/xxx` |
+| 豆瓣 | `douban.com/group/topic/xxx` |
+| 堆糖 | `duitang.com/blog?id=xxx`、`duitang.com/atlas?id=xxx` |
+| LOFTER | `xxx.lofter.com/post/xxx`、`s.lofter.com/xxx` |
+| 酷安 | `coolapk.com/feed/xxx` |
+| TapTap | `taptap.cn/xxx` |
+| 5EPlay | `csgo.5eplay.com/forum/xxx` |
+| 完美世界电竞 | `news.wmpvp.com/community-detail.html?...` |
+| 大神 | `ds.163.com/xxx` |
+| 壁吧专楼吧 | `zlb.ink/xxx` |
+| LINUX DO | `linux.do/t/topic/xxx` |
+| BUFF | `buff.163.com/s/...` |
+| ILLU | `illund.com/share.html?...` |
+| 豆包 | `doubao.com/video-sharing?...` |
+| 网易云音乐 | `music.163.com/#/song?id=xxx`、`163cn.tv/xxx` |
+| QQ音乐 | `y.qq.com/n/ryqq/songDetail/xxx`、`c6.y.qq.com/base/fcgi-bin/u?__=xxx` |
+| 酷狗音乐 | `t1.kugou.com/xxx`、`kugou.com/share/xxx` |
+| 酷我音乐 | `kuwo.cn/play_detail/xxx` |
+| 汽水音乐 | `qishui.douyin.com/s/xxx` |
 
-小红书、微博、知乎的部分内容要登录态才看得到，在管理台填对应的 Cookie 即可。
+小红书、微博、知乎、小黑盒的部分内容要登录态才看得到，在管理台填对应的 Cookie 即可。
 
 ## 发送方式
 
