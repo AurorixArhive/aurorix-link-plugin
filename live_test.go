@@ -1,6 +1,7 @@
 package link
 
 import (
+	"context"
 	"testing"
 
 	"github.com/AurorixArhive/aurorix-link-plugin/internal/parse"
@@ -29,6 +30,8 @@ func TestLivePlatforms(t *testing.T) {
 		{"网易云音乐", "https://music.163.com/#/song?id=1303026620"},
 		{"酷狗音乐", "https://t1.kugou.com/x?hash=28F83BBD8CAB043895039E98366AD2B4"},
 		{"酷我音乐", "https://www.kuwo.cn/play_detail/4406153"},
+		{"QQ音乐", "https://y.qq.com/n/ryqq/songDetail/0039MnYb0qxYhV"},
+		{"小红书", "https://xhslink.cn/o/3TK7YCDSmq5"},
 		{"B站", "https://www.bilibili.com/video/BV1GJ411x7h7"},
 		{"微博文章", "https://weibo.com/ttarticle/p/show?id=2309404962180771742222"},
 		{"虎扑", "https://m.hupu.com/bbs/639669147.html"},
@@ -55,7 +58,7 @@ func TestLivePlatforms(t *testing.T) {
 			if !ok {
 				t.Fatalf("没匹配上 %s", c.url)
 			}
-			got, err := hit.Route.Handle(nil, hit.Match)
+			got, err := hit.Route.Handle(context.Background(), hit.Match)
 			if err != nil {
 				t.Fatalf("解析失败: %v", err)
 			}

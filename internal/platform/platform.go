@@ -21,6 +21,7 @@ import (
 	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/lofter"
 	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/miyoushe"
 	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/netease"
+	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/qqmusic"
 	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/qsmusic"
 	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/rednote"
 	_ "github.com/AurorixArhive/aurorix-link-plugin/internal/platform/taptap"
